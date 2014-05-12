@@ -1,4 +1,4 @@
-#! /usr/bin/python -O
+#!/usr/bin/env python -O
 import praw
 import MySQLdb
 import ConfigParser
