@@ -13,6 +13,10 @@ from requests.exceptions import HTTPError, ConnectionError, Timeout
 from socket import timeout
 import time
 
+# =============================================================================
+# GLOBALS
+# =============================================================================
+
 # Reads the config file
 config = ConfigParser.ConfigParser()
 config.read("asoiafsearchbot.cfg")
