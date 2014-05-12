@@ -12,7 +12,7 @@ from socket import timeout
 config = ConfigParser.ConfigParser()
 config.read("asoiafsearchbot.cfg")
 
-user_agent = ("ASOIAFSearchBot v1.0 by /u/RemindMeBotWrangler")
+user_agent = ("ASOIAFSearchBot -Help you find that comment- by /u/RemindMeBotWrangler")
 reddit = praw.Reddit(user_agent = user_agent)
 
 # Reddit Info
@@ -104,7 +104,7 @@ def search_db(comment, term, sensitive):
 	
 	if not sensitive:
 		# INSENSITIVE SEARCH
-		searchDB.execute('SELECT * FROM %s WHERE lower(%s) REGEXP "[[:<:]]%s[[:>:]]" ORDER BY FIELD(%s, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD")' %(table, column1, term, column2))
+		searchDB.execute('SELECT * FROM %s WHERE lower(%s) REGEXP "([[:blank:][:punct:]]|^)%s([[:punct:][:blank:]]|$)" ORDER BY FIELD(%s, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD")' %(table, column1, term, column2))
 		data = searchDB.fetchall()
 		listOccurence = []
 		
@@ -117,7 +117,7 @@ def search_db(comment, term, sensitive):
 
 	else:
 		# SENSITIVE SEARCH
-		searchDB.execute('SELECT * FROM %s WHERE %s REGEXP BINARY "[[:<:]]%s[[:>:]]" ORDER BY FIELD(%s, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD")' %(table, column1, term, column2))
+		searchDB.execute('SELECT * FROM %s WHERE %s REGEXP BINARY "([[:blank:][:punct:]]|^)%s([[:punct:][:blank:]]|$)" ORDER BY FIELD(%s, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD")' %(table, column1, term, column2))
 		data = searchDB.fetchall()
 		listOccurence = []
 		
@@ -138,7 +138,7 @@ def send_message(comment, list, rowCount, total, term, sensitive):
 	
 	try:
 		message = ""
-		comment_to_user = "**SEARCH TERM ({0}): {1}** \n\n Total Occurrence: {2} \n\n{3} [Visualization of the search term](http://creative-co.de/labs/songicefire/?terms={1})\n_____\n ^(Hello, I'm ASOIAFSearchBot, I will display the occurrence of your term and what chapters it was found in.)"
+		comment_to_user = "**SEARCH TERM ({0}): {1}** \n\n Total Occurrence: {2} \n\n{3} [Visualization of the search term](http://creative-co.de/labs/songicefire/?terms={1})\n_____\n ^(Hello, I'm ASOIAFSearchBot, I will display the occurrence of your term and what chapters it was found in.)[^(More Info Here)](http://www.reddit.com/r/asoiaf/comments/25amke/spoilers_all_introducing_asoiafsearchbot_command/)"
 		
 		# Avoid spam, limit amount of rows
 		if rowCount < 30 and total > 0:
@@ -150,7 +150,7 @@ def send_message(comment, list, rowCount, total, term, sensitive):
 		elif rowCount > 30:
 			message = "**Excess amount of chapters.**\n"
 		elif total == 0:
-			message = "**Sorry no results.**\n"
+			message = "**Sorry no results.**\n\n"
 		
 		caseSensitive = ""
 		if sensitive:
@@ -172,18 +172,18 @@ def main():
 	while True:
 		try:
 			# Grab all new comments from /r/asoiaf
-			comments = praw.helpers.comment_stream(reddit, 'all', limit=None, verbosity=0)
+			comments = praw.helpers.comment_stream(reddit, 'asoiaf', limit=None, verbosity=0)
 			comment_count = 0
 			# Loop through each comment
 			for comment in comments:
 				comment_count += 1
 				if "SearchAll!" in comment.body:
 					parse_comment(comment)
-				# end loop after 1000
-				if comment_count == 1000:
+				# end loop after 50
+				if comment_count == 50:
 					break
 			print "sleeping"
-			time.sleep(10)
+			time.sleep(25)
 		except Exception, e:
 			print e
 			
