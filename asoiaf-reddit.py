@@ -146,7 +146,7 @@ def search_db(comment, term, sensitive):
                 "| {series}| {book}| {chapter}| {pov}| {occur}".format(
                     series=row[0],
                     book=row[1],
-                    chapter=row[3],  # TODO: Why did we just skip row 2?
+                    chapter=row[3],
                     pov=row[4],
                     occur=row[5].lower().count(term.lower()),
                 )
@@ -177,7 +177,7 @@ def search_db(comment, term, sensitive):
                 "| {series}| {book}| {chapter}| {pov}| {occur}".format(
                     series=row[0],
                     book=row[1],
-                    chapter=row[3],  # TODO: Why did we just skip row 2?
+                    chapter=row[3],
                     pov=row[4],
                     occur=row[5].count(term),
                 )
