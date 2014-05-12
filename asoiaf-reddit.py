@@ -113,45 +113,53 @@ def search_db(comment, term, sensitive):
     """
     Queries through DB counts occurrences for each chapter
     """
-    searchDB = Connect()
+    search_database = Connect()
 
     # Take away whitespace and quotations at start and end
     term = term[1:]
     term = term[:len(term) - 1]
     term = term.strip()
-
     
-    total = 0 # Total Occurrence 
-    rowCount = 0 # How many rows have been searched through
+    total = 0  # Total Occurrence
+    row_count = 0  # How many rows have been searched through
     
     if not sensitive:
         # INSENSITIVE SEARCH
-        searchDB.execute('SELECT * FROM %s WHERE lower(%s) REGEXP "([[:blank:][:punct:]]|^)%s([[:punct:][:blank:]]|$)" ORDER BY FIELD(%s, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD")' %(table, column1, term, column2))
-        data = searchDB.fetchall()
-        listOccurence = []
+        search_database.execute(
+            'SELECT * FROM %s WHERE lower(%s) REGEXP '
+            '"([[:blank:][:punct:]]|^)%s([[:punct:][:blank:]]|$)" '
+            'ORDER BY FIELD'
+            '(%s, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD")' %(table, column1, term, column2)
+        )
+        data = search_database.fetchall()
+        list_occurrence = []
         
         # Counts occurrences in each row and
         # adds itself to listOccurrence for message
         for row in data:
-            listOccurence.append("| " + str(row[0]) + "| " + str(row[1]) + "| " + str(row[3]) + "| " + str(row[4]) + "| " + str(row[5].lower().count(term.lower())))
+            list_occurrence.append("| " + str(row[0]) + "| " + str(row[1]) + "| " + str(row[3]) + "| " + str(row[4]) + "| " + str(row[5].lower().count(term.lower())))
             total += row[5].lower().count(term.lower())
-            rowCount += 1
+            row_count += 1
 
     else:
         # SENSITIVE SEARCH
-        searchDB.execute('SELECT * FROM %s WHERE %s REGEXP BINARY "([[:blank:][:punct:]]|^)%s([[:punct:][:blank:]]|$)" ORDER BY FIELD(%s, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD")' %(table, column1, term, column2))
-        data = searchDB.fetchall()
-        listOccurence = []
+        search_database.execute(
+            'SELECT * FROM %s WHERE %s REGEXP BINARY '
+            '"([[:blank:][:punct:]]|^)%s([[:punct:][:blank:]]|$)" '
+            'ORDER BY FIELD'
+            '(%s, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD")' %(table, column1, term, column2))
+        data = search_database.fetchall()
+        list_occurrence = []
         
         # Counts occurrences in each row and
         # adds itself to listOccurrence for message
         for row in data:
-            listOccurence.append("| " + str(row[0]) + "| " + str(row[1]) + "| " + str(row[3]) + "| " + str(row[4]) + "| "  + str(row[5].count(term)))
+            list_occurrence.append("| " + str(row[0]) + "| " + str(row[1]) + "| " + str(row[3]) + "| " + str(row[4]) + "| "  + str(row[5].count(term)))
             total += row[5].count(term)
-            rowCount += 1
+            row_count += 1
             
-    searchDB.close()
-    send_message(comment, listOccurence, rowCount, total, term, sensitive)
+    search_database.close()
+    send_message(comment, list_occurrence, row_count, total, term, sensitive)
 
 
 def send_message(comment, list, rowCount, total, term, sensitive):
