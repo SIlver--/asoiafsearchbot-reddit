@@ -37,7 +37,12 @@ column2 = config.get("SQL","column2")
 # commented already messaged are appended to avoid messaging again
 commented = []
 
-class Connect:
+# =============================================================================
+# CLASSES
+# =============================================================================
+
+
+class Connect(object):
     """
     DB connection class
     """
@@ -45,7 +50,9 @@ class Connect:
     cursor = None
 
     def __init__(self):
-        self.connection = MySQLdb.connect(host= host, user = user, passwd= passwd, db= db)
+        self.connection = MySQLdb.connect(
+            host=host, user=user, passwd=passwd, db=db
+        )
         self.cursor = self.connection.cursor()
 
     def execute(self, command):
