@@ -148,7 +148,7 @@ def send_message(comment, list, rowCount, total, term, sensitive):
 			for row in list:
 				message += row + "\n"
 		elif rowCount > 30:
-			message = "**Excess amount of chapters.**\n"
+			message = "**Excess amount of chapters.**\n\n"
 		elif total == 0:
 			message = "**Sorry no results.**\n\n"
 		
@@ -171,6 +171,7 @@ def send_message(comment, list, rowCount, total, term, sensitive):
 def main():
 	while True:
 		try:
+			print "start"
 			# Grab all new comments from /r/asoiaf
 			comments = praw.helpers.comment_stream(reddit, 'asoiaf', limit=None, verbosity=0)
 			comment_count = 0
@@ -180,7 +181,7 @@ def main():
 				if "SearchAll!" in comment.body:
 					parse_comment(comment)
 				# end loop after 50
-				if comment_count == 50:
+				if comment_count == 1000:
 					break
 			print "sleeping"
 			time.sleep(25)
