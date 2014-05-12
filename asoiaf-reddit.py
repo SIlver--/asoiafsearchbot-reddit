@@ -162,7 +162,7 @@ def search_db(comment, term, sensitive):
     send_message(comment, list_occurrence, row_count, total, term, sensitive)
 
 
-def send_message(comment, list, rowCount, total, term, sensitive):
+def send_message(comment, occurrence, row_count, total, term, sensitive):
     """
     Sends message to user with the requested information
     """
@@ -172,32 +172,31 @@ def send_message(comment, list, rowCount, total, term, sensitive):
         comment_to_user = "**SEARCH TERM ({0}): {1}** \n\n Total Occurrence: {2} \n\n{3} [Visualization of the search term](http://creative-co.de/labs/songicefire/?terms={1})\n_____\n ^(Hello, I'm ASOIAFSearchBot, I will display the occurrence of your term and what chapters it was found in.)[^(More Info Here)](http://www.reddit.com/r/asoiaf/comments/25amke/spoilers_all_introducing_asoiafsearchbot_command/)"
         
         # Avoid spam, limit amount of rows
-        if rowCount < 30 and total > 0:
+        if row_count < 30 and total > 0:
             message += "| Series" + "| Book"  + "| Chapter Name" + "| Chapter POV" + "| Occurrence\n"
             message += "|:-----------" + "|:-----------" + "|:-----------" + "|:-----------" + "|:-----------|\n"
             # Each element is changed to one string
-            for row in list:
+            for row in occurrence:
                 message += row + "\n"
-        elif rowCount > 30:
+        elif row_count > 30:
             message = "**Excess amount of chapters.**\n"
         elif total == 0:
             message = "**Sorry no results.**\n\n"
-        
-        caseSensitive = ""
+
         if sensitive:
-            caseSensitive = "CASE-SENSITIVE"
+            case_sensitive = "CASE-SENSITIVE"
         else:
-            caseSensitive = "CASE-INSENSITIVE"
+            case_sensitive = "CASE-INSENSITIVE"
         
-        comment.reply(comment_to_user.format(caseSensitive, term, total, message))
-        print comment_to_user.format(caseSensitive, term, total, message)
+        comment.reply(comment_to_user.format(case_sensitive, term, total, message))
+        print comment_to_user.format(case_sensitive, term, total, message)
     except (HTTPError, ConnectionError, Timeout, timeout), e:
-        print e
-    except APIException, e:
         print e
     except RateLimitExceeded, e:
         print e
         time.sleep(10)
+    except APIException, e:  # Catch any less specific API errors
+        print e
 
 # =============================================================================
 # MAIN
