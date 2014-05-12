@@ -71,6 +71,11 @@ class Connect(object):
     def close(self):
         self.connection.close()
 
+# =============================================================================
+# PUBLIC FUNCTIONS
+# =============================================================================
+
+
 def parse_comment(comment):
     """
     Parses comment for what term to search for
@@ -102,6 +107,7 @@ def parse_comment(comment):
         # Stop pesky searches like "a"
         if len(searchTerm) > 3:
             search_db(comment, searchTerm, sensitive)
+
 
 def search_db(comment, term, sensitive):
     """
@@ -146,7 +152,8 @@ def search_db(comment, term, sensitive):
             
     searchDB.close()
     send_message(comment, listOccurence, rowCount, total, term, sensitive)
-    
+
+
 def send_message(comment, list, rowCount, total, term, sensitive):
     """
     Sends message to user with the requested information
