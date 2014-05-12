@@ -22,10 +22,10 @@ config = ConfigParser.ConfigParser()
 config.read("asoiafsearchbot.cfg")
 
 user_agent = ("ASOIAFSearchBot -Help you find that comment- by /u/RemindMeBotWrangler")
-reddit = praw.Reddit(user_agent = user_agent)
+reddit = praw.Reddit(user_agent=user_agent)
 
 # Reddit Info
-reddit_user =  config.get("Reddit", "username")
+reddit_user = config.get("Reddit", "username")
 reddit_pass = config.get("Reddit", "password")
 reddit.login(reddit_user, reddit_pass)
 
@@ -35,8 +35,8 @@ user = config.get("SQL", "user")
 passwd = config.get("SQL", "passwd")
 db = config.get("SQL", "db")
 table = config.get("SQL", "table")
-column1 = config.get("SQL","column1")
-column2 = config.get("SQL","column2")
+column1 = config.get("SQL", "column1")
+column2 = config.get("SQL", "column2")
 
 # commented already messaged are appended to avoid messaging again
 commented = []
@@ -88,22 +88,22 @@ def parse_comment(comment):
     # Allows quotations to be used before SearchAll!
     original_comment = comment.body
     original_comment = ''.join(original_comment.split('SearchAll!')[1:])
-    
+
     if comment not in commented:
         commented.append(comment)
         print "in here"
-        # INSENSITIVE    
+        # INSENSITIVE
         search_brackets = re.search('"(.*?)"', original_comment)
         if search_brackets:
             search_term = search_brackets.group(0)
             sensitive = False
-            
+
         # SENSITIVE
         search_tri = re.search('\((.*?)\)', original_comment)
         if search_tri:
             search_term = search_tri.group(0)
             sensitive = True
-        
+
         # Stop pesky searches like "a"
         if len(search_term) > 3:
             search_db(comment, search_term, sensitive)
@@ -119,10 +119,10 @@ def search_db(comment, term, sensitive):
     term = term[1:]
     term = term[:len(term) - 1]
     term = term.strip()
-    
+
     total = 0  # Total Occurrence
     row_count = 0  # How many rows have been searched through
-    
+
     if not sensitive:
         # INSENSITIVE SEARCH
         search_database.execute(
@@ -138,7 +138,7 @@ def search_db(comment, term, sensitive):
         )
         data = search_database.fetchall()
         list_occurrence = []
-        
+
         # Counts occurrences in each row and
         # adds itself to listOccurrence for message
         for row in data:
@@ -169,7 +169,7 @@ def search_db(comment, term, sensitive):
         )
         data = search_database.fetchall()
         list_occurrence = []
-        
+
         # Counts occurrences in each row and
         # adds itself to listOccurrence for message
         for row in data:
@@ -184,7 +184,7 @@ def search_db(comment, term, sensitive):
             )
             total += row[5].lower().count(term.lower())
             row_count += 1
-            
+
     search_database.close()
     send_message(comment, list_occurrence, row_count, total, term, sensitive)
 
@@ -193,7 +193,7 @@ def send_message(comment, occurrence, row_count, total, term, sensitive):
     """
     Sends message to user with the requested information
     """
-    
+
     try:
         message = ""
         comment_to_user = (
@@ -209,7 +209,7 @@ def send_message(comment, occurrence, row_count, total, term, sensitive):
             "(http://www.reddit.com/r/asoiaf/comments/25amke/"
             "spoilers_all_introducing_asoiafsearchbot_command/)"
         )
-        
+
         # Avoid spam, limit amount of rows
         if row_count < 30 and total > 0:
             message += "| Series| Book| Chapter Name| Chapter POV| Occurrence\n"
@@ -228,7 +228,7 @@ def send_message(comment, occurrence, row_count, total, term, sensitive):
             case_sensitive = "CASE-SENSITIVE"
         else:
             case_sensitive = "CASE-INSENSITIVE"
-        
+
         comment.reply(
             comment_to_user.format(
                 case_sensitive, term, total, message
@@ -249,6 +249,7 @@ def send_message(comment, occurrence, row_count, total, term, sensitive):
 
 
 def main():
+    """Main runner"""
     while True:
         try:
             # Grab all new comments from /r/asoiaf
