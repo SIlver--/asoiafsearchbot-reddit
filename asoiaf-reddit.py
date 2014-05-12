@@ -207,7 +207,9 @@ def main():
     while True:
         try:
             # Grab all new comments from /r/asoiaf
-            comments = praw.helpers.comment_stream(reddit, 'asoiaf', limit=None, verbosity=0)
+            comments = praw.helpers.comment_stream(
+                reddit, 'asoiaf', limit=None, verbosity=0
+            )
             comment_count = 0
             # Loop through each comment
             for comment in comments:
