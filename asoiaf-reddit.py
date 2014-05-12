@@ -82,31 +82,31 @@ def parse_comment(comment):
     Also decides if it's sensitive or insensitive
     """
 
-    searchTerm = ""
+    search_term = ""
     sensitive = False
     # remove everything before SearchAll!
     # Allows quotations to be used before SearchAll!
-    originalComment = comment.body
-    originalComment = ''.join(originalComment.split('SearchAll!')[1:])
+    original_comment = comment.body
+    original_comment = ''.join(original_comment.split('SearchAll!')[1:])
     
-    if (comment not in commented):
+    if comment not in commented:
         commented.append(comment)
         print "in here"
         # INSENSITIVE    
-        searchBrackets = re.search('"(.*?)"', originalComment)        
-        if searchBrackets:
-            searchTerm = searchBrackets.group(0)
+        search_brackets = re.search('"(.*?)"', original_comment)
+        if search_brackets:
+            search_term = search_brackets.group(0)
             sensitive = False
             
         # SENSITIVE
-        searchTri = re.search('\((.*?)\)', originalComment)
-        if searchTri:
-            searchTerm = searchTri.group(0)
+        search_tri = re.search('\((.*?)\)', original_comment)
+        if search_tri:
+            search_term = search_tri.group(0)
             sensitive = True
         
         # Stop pesky searches like "a"
-        if len(searchTerm) > 3:
-            search_db(comment, searchTerm, sensitive)
+        if len(search_term) > 3:
+            search_db(comment, search_term, sensitive)
 
 
 def search_db(comment, term, sensitive):
