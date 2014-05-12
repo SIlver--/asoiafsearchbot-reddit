@@ -1,12 +1,17 @@
 #!/usr/bin/env python -O
-import praw
-import MySQLdb
+
+# =============================================================================
+# IMPORTS
+# =============================================================================
+
 import ConfigParser
+import MySQLdb
+import praw
+from praw.errors import  APIException, RateLimitExceeded
 import re
-import time
 from requests.exceptions import HTTPError, ConnectionError, Timeout
-from praw.errors import ExceptionList, APIException, InvalidCaptcha, InvalidUser, RateLimitExceeded
 from socket import timeout
+import time
 
 # Reads the config file
 config = ConfigParser.ConfigParser()
