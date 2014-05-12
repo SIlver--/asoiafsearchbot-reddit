@@ -126,10 +126,15 @@ def search_db(comment, term, sensitive):
     if not sensitive:
         # INSENSITIVE SEARCH
         search_database.execute(
-            'SELECT * FROM %s WHERE lower(%s) REGEXP '
-            '"([[:blank:][:punct:]]|^)%s([[:punct:][:blank:]]|$)" '
+            'SELECT * FROM {table} WHERE lower({col1}) REGEXP '
+            '"([[:blank:][:punct:]]|^){term}([[:punct:][:blank:]]|$)" '
             'ORDER BY FIELD'
-            '(%s, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD")' %(table, column1, term, column2)
+            '({col2}, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD")'.format(
+                table=table,
+                col1=column1,
+                term=term,
+                col2=column2
+            )
         )
         data = search_database.fetchall()
         list_occurrence = []
@@ -137,25 +142,47 @@ def search_db(comment, term, sensitive):
         # Counts occurrences in each row and
         # adds itself to listOccurrence for message
         for row in data:
-            list_occurrence.append("| " + str(row[0]) + "| " + str(row[1]) + "| " + str(row[3]) + "| " + str(row[4]) + "| " + str(row[5].lower().count(term.lower())))
+            list_occurrence.append(
+                "| {0}| {1}| {2}| {3}| {4}".format(
+                    str(row[0]),
+                    str(row[1]),
+                    str(row[3]),  # TODO: Why did we just skip row 2?
+                    str(row[4]),
+                    str(row[5].lower().count(term.lower())),
+                )
+            )
             total += row[5].lower().count(term.lower())
             row_count += 1
 
     else:
         # SENSITIVE SEARCH
         search_database.execute(
-            'SELECT * FROM %s WHERE %s REGEXP BINARY '
-            '"([[:blank:][:punct:]]|^)%s([[:punct:][:blank:]]|$)" '
+            'SELECT * FROM {table} WHERE {col1} REGEXP BINARY '
+            '"([[:blank:][:punct:]]|^){term}([[:punct:][:blank:]]|$)" '
             'ORDER BY FIELD'
-            '(%s, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD")' %(table, column1, term, column2))
+            '({col2}, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD")'.format(
+                table=table,
+                col1=column1,
+                term=term,
+                col2=column2
+            )
+        )
         data = search_database.fetchall()
         list_occurrence = []
         
         # Counts occurrences in each row and
         # adds itself to listOccurrence for message
         for row in data:
-            list_occurrence.append("| " + str(row[0]) + "| " + str(row[1]) + "| " + str(row[3]) + "| " + str(row[4]) + "| "  + str(row[5].count(term)))
-            total += row[5].count(term)
+            list_occurrence.append(
+                "| {0}| {1}| {2}| {3}| {4}".format(
+                    str(row[0]),
+                    str(row[1]),
+                    str(row[3]),  # TODO: Why did we just skip row 2?
+                    str(row[4]),
+                    str(row[5].count(term)),
+                )
+            )
+            total += row[5].lower().count(term.lower())
             row_count += 1
             
     search_database.close()
