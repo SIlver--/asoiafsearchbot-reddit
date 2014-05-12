@@ -196,12 +196,26 @@ def send_message(comment, occurrence, row_count, total, term, sensitive):
     
     try:
         message = ""
-        comment_to_user = "**SEARCH TERM ({0}): {1}** \n\n Total Occurrence: {2} \n\n{3} [Visualization of the search term](http://creative-co.de/labs/songicefire/?terms={1})\n_____\n ^(Hello, I'm ASOIAFSearchBot, I will display the occurrence of your term and what chapters it was found in.)[^(More Info Here)](http://www.reddit.com/r/asoiaf/comments/25amke/spoilers_all_introducing_asoiafsearchbot_command/)"
+        comment_to_user = (
+            "**SEARCH TERM ({0}): {1}** \n\n "
+            "Total Occurrence: {2} \n\n"
+            "{3} "
+            "[Visualization of the search term]"
+            "(http://creative-co.de/labs/songicefire/?terms={1})"
+            "\n_____\n "
+            "^(Hello, I'm ASOIAFSearchBot, I will display the occurrence of "
+            "your term and what chapters it was found in.)"
+            "[^(More Info Here)]"
+            "(http://www.reddit.com/r/asoiaf/comments/25amke/"
+            "spoilers_all_introducing_asoiafsearchbot_command/)"
+        )
         
         # Avoid spam, limit amount of rows
         if row_count < 30 and total > 0:
-            message += "| Series" + "| Book"  + "| Chapter Name" + "| Chapter POV" + "| Occurrence\n"
-            message += "|:-----------" + "|:-----------" + "|:-----------" + "|:-----------" + "|:-----------|\n"
+            message += "| Series| Book| Chapter Name| Chapter POV| Occurrence\n"
+            message += "|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|\n".format(
+                dash='-' * 11
+            )
             # Each element is changed to one string
             for row in occurrence:
                 message += row + "\n"
@@ -215,7 +229,11 @@ def send_message(comment, occurrence, row_count, total, term, sensitive):
         else:
             case_sensitive = "CASE-INSENSITIVE"
         
-        comment.reply(comment_to_user.format(case_sensitive, term, total, message))
+        comment.reply(
+            comment_to_user.format(
+                case_sensitive, term, total, message
+            )
+        )
         print comment_to_user.format(case_sensitive, term, total, message)
     except (HTTPError, ConnectionError, Timeout, timeout), e:
         print e
