@@ -235,13 +235,13 @@ def send_message(comment, occurrence, row_count, total, term, sensitive):
             )
         )
         print comment_to_user.format(case_sensitive, term, total, message)
-    except (HTTPError, ConnectionError, Timeout, timeout), e:
-        print e
-    except RateLimitExceeded, e:
-        print e
+    except (HTTPError, ConnectionError, Timeout, timeout) as err:
+        print err
+    except RateLimitExceeded as err:
+        print err
         time.sleep(10)
-    except APIException, e:  # Catch any less specific API errors
-        print e
+    except APIException as err:  # Catch any less specific API errors
+        print err
 
 # =============================================================================
 # MAIN
@@ -268,8 +268,8 @@ def main():
                     break
             print "sleeping"
             time.sleep(25)
-        except Exception, e:
-            print e
+        except Exception as err:
+            print err
 
 # =============================================================================
 # RUNNER
