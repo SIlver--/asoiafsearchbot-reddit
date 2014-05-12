@@ -143,12 +143,12 @@ def search_db(comment, term, sensitive):
         # adds itself to listOccurrence for message
         for row in data:
             list_occurrence.append(
-                "| {0}| {1}| {2}| {3}| {4}".format(
-                    str(row[0]),
-                    str(row[1]),
-                    str(row[3]),  # TODO: Why did we just skip row 2?
-                    str(row[4]),
-                    str(row[5].lower().count(term.lower())),
+                "| {series}| {book}| {chapter}| {pov}| {occur}".format(
+                    series=row[0],
+                    book=row[1],
+                    chapter=row[3],  # TODO: Why did we just skip row 2?
+                    pov=row[4],
+                    occur=row[5].lower().count(term.lower()),
                 )
             )
             total += row[5].lower().count(term.lower())
@@ -174,12 +174,12 @@ def search_db(comment, term, sensitive):
         # adds itself to listOccurrence for message
         for row in data:
             list_occurrence.append(
-                "| {0}| {1}| {2}| {3}| {4}".format(
-                    str(row[0]),
-                    str(row[1]),
-                    str(row[3]),  # TODO: Why did we just skip row 2?
-                    str(row[4]),
-                    str(row[5].count(term)),
+                "| {series}| {book}| {chapter}| {pov}| {occur}".format(
+                    series=row[0],
+                    book=row[1],
+                    chapter=row[3],  # TODO: Why did we just skip row 2?
+                    pov=row[4],
+                    occur=row[5].count(term),
                 )
             )
             total += row[5].lower().count(term.lower())
