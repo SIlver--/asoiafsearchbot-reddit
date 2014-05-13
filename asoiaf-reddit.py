@@ -114,7 +114,6 @@ Also decides if it's sensitive or insensitive
 
 
     if comment not in commented:
-        commented.append(comment)
         print "in here"
         # INSENSITIVE
         search_brackets = re.search('"(.*?)"', original_comment)
@@ -198,10 +197,10 @@ Queries through DB counts occurrences for each chapter
                     book=row[1],
                     chapter=row[3],
                     pov=row[4],
-                    occur=row[5].lower().count(term.lower()),
+                    occur=len(re.findall("(\W|^)" + term.lower() + "(\W|$)",row[5].lower()))
                 )
             )
-            total += row[5].lower().count(term.lower())
+            total += len(re.findall("(\W|^)" + term.lower() + "(\W|$)",row[5].lower()))
             row_count += 1
 
 
@@ -257,10 +256,10 @@ Queries through DB counts occurrences for each chapter
                     book=row[1],
                     chapter=row[3],
                     pov=row[4],
-                    occur=row[5].count(term),
+                    occur=len(re.findall("(\W|^)" + term + "(\W|$)",row[5]))
                 )
             )
-            total += row[5].count(term)
+            total += len(re.findall("(\W|^)" + term + "(\W|$)",row[5]))
             row_count += 1
 
 
@@ -277,14 +276,15 @@ Sends message to user with the requested information
     try:
         message = ""
         comment_to_user = (
+            "#####&#009;\n\n######&#009;\n\n####&#009;\n\n"
             "**SEARCH TERM ({0}): {1}** \n\n "
             "Total Occurrence: {2} \n\n"
-            "{3} "
-            "[Visualization of the search term]"
+            ">{3}"
+            "\n[Visualization of the search term]"
             "(http://creative-co.de/labs/songicefire/?terms={1})"
             "\n_____\n "
             "^(Hello, I'm ASOIAFSearchBot, I will display the occurrence of "
-            "your term and what chapters it was found in.)"
+            "your term and what chapters it was found in. )"
             "[^(More Info Here)]"
             "(http://www.reddit.com/r/asoiaf/comments/25amke/"
             "spoilers_all_introducing_asoiafsearchbot_command/)"
@@ -292,7 +292,7 @@ Sends message to user with the requested information
 
         # Avoid spam, limit amount of rows
         if row_count < 30 and total > 0:
-            message += "| Series| Book| Chapter Name| Chapter POV| Occurrence\n"
+            message += ">| Series| Book| Chapter Name| Chapter POV| Occurrence\n"
             message += "|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|\n".format(
                 dash='-' * 11
             )
@@ -300,9 +300,9 @@ Sends message to user with the requested information
             for row in occurrence:
                 message += row + "\n"
         elif row_count > 30:
-            message = "**Excess amount of chapters.**\n\n"
+            message = ">**Excess amount of chapters.**\n\n"
         elif total == 0:
-            message = "**Sorry no results.**\n\n"
+            message = ">**Sorry no results.**\n\n"
 
         if sensitive:
             case_sensitive = "CASE-SENSITIVE"
@@ -315,6 +315,7 @@ Sends message to user with the requested information
             )
         )
         
+        commented.append(comment)
         print comment_to_user.format(case_sensitive, term, total, message)
     except (HTTPError, ConnectionError, Timeout, timeout) as err:
         print err
@@ -333,7 +334,7 @@ def main():
     """Main runner"""
     while True:
         try:
-            print "start "
+            print "start"
             # Grab all new comments from /r/asoiaf
             comments = praw.helpers.comment_stream(
                 reddit, 'asoiaf', limit=None, verbosity=0
@@ -370,6 +371,21 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
