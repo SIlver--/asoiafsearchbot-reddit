@@ -159,7 +159,7 @@ Queries through DB counts occurrences for each chapter
                 'SELECT * FROM {table} WHERE lower({col1}) REGEXP '
                 '"([[:blank:][:punct:]]|^){term}([[:punct:][:blank:]]|$)" '
                 'ORDER BY FIELD'
-                '({col2}, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD")'.format(
+                '({col2}, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD"), 2'.format(
                     table=table,
                     col1=column1,
                     term=term,
@@ -176,7 +176,7 @@ Queries through DB counts occurrences for each chapter
             '"([[:blank:][:punct:]]|^){term}([[:punct:][:blank:]]|$)" '
             'AND {col2} = "{book}" '
             'ORDER BY FIELD'
-            '({col2}, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD")'.format(
+            '({col2}, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD"), 2'.format(
                     table=table,
                     col1=column1,
                     term=term,
@@ -192,9 +192,10 @@ Queries through DB counts occurrences for each chapter
         # adds itself to listOccurrence for message
         for row in data:
             list_occurrence.append(
-                "| {series}| {book}| {chapter}| {pov}| {occur}".format(
+                "| {series}| {book}| {number}| {chapter}| {pov}| {occur}".format(
                     series=row[0],
                     book=row[1],
+                    number=row[2],
                     chapter=row[3],
                     pov=row[4],
                     occur=len(re.findall("(\W|^)" + term.lower() + "(\W|$)",row[5].lower()))
@@ -216,7 +217,7 @@ Queries through DB counts occurrences for each chapter
                 'SELECT * FROM {table} WHERE {col1} REGEXP BINARY '
                 '"([[:blank:][:punct:]]|^){term}([[:punct:][:blank:]]|$)" '
                 'ORDER BY FIELD'
-                '({col2}, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD")'.format(
+                '({col2}, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD"), 2'.format(
                     table=table,
                     col1=column1,
                     term=term,
@@ -233,7 +234,7 @@ Queries through DB counts occurrences for each chapter
                 '"([[:blank:][:punct:]]|^){term}([[:punct:][:blank:]]|$)" '
                 'AND {col2} = "{book}" '
                 'ORDER BY FIELD'
-                '({col2}, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD")'.format(
+                '({col2}, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD"), 2'.format(
                     table=table,
                     col1=column1,
                     term=term,
@@ -251,9 +252,10 @@ Queries through DB counts occurrences for each chapter
         # adds itself to listOccurrence for message
         for row in data:
             list_occurrence.append(
-                "| {series}| {book}| {chapter}| {pov}| {occur}".format(
+                "| {series}| {book}| {number}| {chapter}| {pov}| {occur}".format(
                     series=row[0],
                     book=row[1],
+                    number=row[2],
                     chapter=row[3],
                     pov=row[4],
                     occur=len(re.findall("(\W|^)" + term + "(\W|$)",row[5]))
@@ -292,17 +294,17 @@ Sends message to user with the requested information
 
         # Avoid spam, limit amount of rows
         if row_count < 30 and total > 0:
-            message += ">| Series| Book| Chapter Name| Chapter POV| Occurrence\n"
-            message += "|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|\n".format(
+            message += "| Series| Book| Chapter| Chapter Name| Chapter POV| Occurrence\n"
+            message += "|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|\n".format(
                 dash='-' * 11
             )
             # Each element is changed to one string
             for row in occurrence:
                 message += row + "\n"
         elif row_count > 30:
-            message = ">**Excess amount of chapters.**\n\n"
+            message = "**Excess amount of chapters.**\n\n"
         elif total == 0:
-            message = ">**Sorry no results.**\n\n"
+            message = "**Sorry no results.**\n\n"
 
         if sensitive:
             case_sensitive = "CASE-SENSITIVE"
