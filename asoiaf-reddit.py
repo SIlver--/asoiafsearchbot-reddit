@@ -92,30 +92,29 @@ def parse_comment(comment, book):
     Parses comment for what term to search for
     Also decides if it's sensitive or insensitive
     """
-
-    search_term = ""
-    sensitive = False
-    # remove everything before SearchCommand!
-    # Allows quotations to be used before SearchCommand!
-    original_comment = comment.body
-
-    if (book == ALL):
-        original_comment = ''.join(original_comment.split('SearchAll!')[1:])
-    elif (book == AGOT):
-        print original_comment
-        original_comment = ''.join(original_comment.split('SearchAGOT!')[1:])
-        print original_comment
-    elif (book == ACOK):
-        original_comment = ''.join(original_comment.split('SearchACOK!')[1:])
-    elif (book == ASOS):
-        original_comment = ''.join(original_comment.split('SearchASOS!')[1:])
-    elif (book == AFFC):
-        original_comment = ''.join(original_comment.split('SearchAFFC!')[1:])
-    elif (book == ADWD):
-        original_comment = ''.join(original_comment.split('SearchADWD!')[1:])
-
     if comment.id not in commented:
-        print "in here"
+        search_term = ""
+        sensitive = False
+        # remove everything before SearchCommand!
+        # Allows quotations to be used before SearchCommand!
+        original_comment = comment.body
+
+        if (book == ALL):
+            original_comment = ''.join(original_comment.split('SearchAll!')[1:])
+        elif (book == AGOT):
+            original_comment = ''.join(original_comment.split('SearchAGOT!')[1:])
+        elif (book == ACOK):
+            original_comment = ''.join(original_comment.split('SearchACOK!')[1:])
+        elif (book == ASOS):
+            original_comment = ''.join(original_comment.split('SearchASOS!')[1:])
+        elif (book == AFFC):
+            original_comment = ''.join(original_comment.split('SearchAFFC!')[1:])
+        elif (book == ADWD):
+            original_comment = ''.join(original_comment.split('SearchADWD!')[1:])
+
+        # Only reply to threads with Spoiler All
+        # TODO: Expand to each book spoiler tag scope
+        #if re.match("(\(|\[).*(published|(spoiler.*all)|(all.*spoiler)).*(\)|\])", comment.link_title.lower()):
         # INSENSITIVE
         search_brackets = re.search('"(.*?)"', original_comment)
         if search_brackets:
@@ -132,6 +131,19 @@ def parse_comment(comment, book):
         if len(search_term) > 3:
             search_db(comment, search_term, sensitive, book)
 
+        else:
+            message = (
+                "######&#009;\n\n####&#009;\n\n#####&#009;\n\n"
+                ">**Sorry, fulfilling this request would be a spoiler.**"
+                "\n_____\n"
+                "^(Hello, I'm ASOIAFSearchBot, I will display the occurrence of "
+                "your term and what chapters it was found in. )"
+                "[^(More Info Here)]"
+                "(http://www.reddit.com/r/asoiaf/comments/25amke/"
+                "spoilers_all_introducing_asoiafsearchbot_command/)"
+            )
+            reply(comment, message)
+ 
 
 def search_db(comment, term, sensitive, book):
     """
@@ -287,7 +299,7 @@ def build_message(comment, occurrence, row_count, total, term, sensitive):
     )
 
     # Avoid spam, limit amount of rows
-    if row_count < 30 and total > 0:
+    if row_count < 31 and total > 0:
         message += (
             "| Series| Book| Chapter| Chapter Name| Chapter POV| Occurrence\n"
         )
@@ -297,8 +309,8 @@ def build_message(comment, occurrence, row_count, total, term, sensitive):
         # Each element is changed to one string
         for row in occurrence:
             message += row + "\n"
-    elif row_count > 30:
-        message = "**Excess amount of chapters.**\n\n"
+    elif row_count > 31:
+        message = "**Excess number of chapters.**\n\n"
     elif total == 0:
         message = "**Sorry no results.**\n\n"
 
@@ -317,7 +329,6 @@ def build_message(comment, occurrence, row_count, total, term, sensitive):
         term_history[term.lower()] = comment_to_user
 
     reply(comment, comment_to_user)
-    print comment_to_user
 
 
 
@@ -326,6 +337,7 @@ def reply(comment, full_reply):
     """Replies to a comment with the text provided"""
     try:
         comment.reply(full_reply)
+        print full_reply
     except (HTTPError, ConnectionError, Timeout, timeout) as err:
         print err
     except RateLimitExceeded as err:
@@ -355,7 +367,7 @@ def main():
             # Loop through each comment
             for comment in comments:
                 comment_count += 1
-
+                
                 if "SearchAll!" in comment.body:
                     parse_comment(comment, ALL)
                 elif "SearchAGOT!" in comment.body:
