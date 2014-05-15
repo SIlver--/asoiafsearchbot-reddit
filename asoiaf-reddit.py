@@ -114,33 +114,33 @@ def parse_comment(comment, book):
 
         # Only reply to threads with Spoiler All
         # TODO: Expand to each book spoiler tag scope
-        #if re.match("(\(|\[).*(published|(spoiler.*all)|(all.*spoiler)).*(\)|\])", comment.link_title.lower()):
-        # INSENSITIVE
-        search_brackets = re.search('"(.*?)"', original_comment)
-        if search_brackets:
-            search_term = search_brackets.group(0)
-            sensitive = False
+        if re.match("(\(|\[).*(published|(spoiler.*all)|(all.*spoiler)).*(\)|\])", comment.link_title.lower()):
+            # INSENSITIVE
+            search_brackets = re.search('"(.*?)"', original_comment)
+            if search_brackets:
+                search_term = search_brackets.group(0)
+                sensitive = False
 
-        # SENSITIVE
-        search_tri = re.search('\((.*?)\)', original_comment)
-        if search_tri:
-            search_term = search_tri.group(0)
-            sensitive = True
+            # SENSITIVE
+            search_tri = re.search('\((.*?)\)', original_comment)
+            if search_tri:
+                search_term = search_tri.group(0)
+                sensitive = True
 
-        # Stop pesky searches like "a"
-        if len(search_term) > 3:
-            search_db(comment, search_term, sensitive, book)
+            # Stop pesky searches like "a"
+            if len(search_term) > 3:
+                search_db(comment, search_term, sensitive, book)
 
         else:
             message = (
                 "######&#009;\n\n####&#009;\n\n#####&#009;\n\n"
-                ">**Sorry, fulfilling this request would be a spoiler.**"
-                "\n_____\n"
-                "^(Hello, I'm ASOIAFSearchBot, I will display the occurrence of "
-                "your term and what chapters it was found in. )"
+                ">**Sorry, fulfilling this request would be a spoiler.**\n\n"
+                "_____\n"
+                "^(I'm ASOIAFSearchBot, I will display the occurrence of your "
+                "search term throughout the books. Only currently working in Spoiler All topics.) "
                 "[^(More Info Here)]"
                 "(http://www.reddit.com/r/asoiaf/comments/25amke/"
-                "spoilers_all_introducing_asoiafsearchbot_command/)"
+                "spoilers_all_introducing_asoiafsearchbot_command/)\n\n"
             )
             reply(comment, message)
  
@@ -291,8 +291,8 @@ def build_message(comment, occurrence, row_count, total, term, sensitive):
         "\n[Visualization of the search term]"
         "(http://creative-co.de/labs/songicefire/?terms={term})"
         "\n_____\n "
-        "^(Hello, I'm ASOIAFSearchBot, I will display the occurrence of "
-        "your term and what chapters it was found in. )"
+        "^(I'm ASOIAFSearchBot, I will display the occurrence of your "
+        "search term throughout the books. Only currently working in Spoiler All topics.) "
         "[^(More Info Here)]"
         "(http://www.reddit.com/r/asoiaf/comments/25amke/"
         "spoilers_all_introducing_asoiafsearchbot_command/)"
