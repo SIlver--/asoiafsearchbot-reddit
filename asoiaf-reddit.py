@@ -41,6 +41,10 @@ column2 = config.get("SQL", "column2")
 # commented already messaged are appended to avoid messaging again
 commented = []
 
+# already searched terms
+term_history = {}
+term_history_sensitive = {}
+
 # books
 ALL = 'ALL'
 AGOT = 'AGOT'
@@ -56,8 +60,8 @@ ADWD = 'ADWD'
 
 class Connect(object):
     """
-DB connection class
-"""
+    DB connection class
+    """
     connection = None
     cursor = None
 
@@ -83,75 +87,78 @@ DB connection class
 # PUBLIC FUNCTIONS
 # =============================================================================
 
-
 def parse_comment(comment, book):
     """
-Parses comment for what term to search for
-Also decides if it's sensitive or insensitive
-"""
+    Parses comment for what term to search for
+    Also decides if it's sensitive or insensitive
+    """
+    if comment.id not in commented:
+        search_term = ""
+        sensitive = False
+        # remove everything before SearchCommand!
+        # Allows quotations to be used before SearchCommand!
+        original_comment = comment.body
 
-    search_term = ""
-    sensitive = False
-    # remove everything before SearchCommand!
-    # Allows quotations to be used before SearchCommand!
-    original_comment = comment.body
+        if (book == ALL):
+            original_comment = ''.join(original_comment.split('SearchAll!')[1:])
+        elif (book == AGOT):
+            original_comment = ''.join(original_comment.split('SearchAGOT!')[1:])
+        elif (book == ACOK):
+            original_comment = ''.join(original_comment.split('SearchACOK!')[1:])
+        elif (book == ASOS):
+            original_comment = ''.join(original_comment.split('SearchASOS!')[1:])
+        elif (book == AFFC):
+            original_comment = ''.join(original_comment.split('SearchAFFC!')[1:])
+        elif (book == ADWD):
+            original_comment = ''.join(original_comment.split('SearchADWD!')[1:])
 
-    
-    if (book == ALL):
-        original_comment = ''.join(original_comment.split('SearchAll!')[1:])
-    elif (book == AGOT):
-        print original_comment
-        original_comment = ''.join(original_comment.split('SearchAGOT!')[1:])
-        print original_comment
-    elif (book == ACOK):
-        original_comment = ''.join(original_comment.split('SearchACOK!')[1:])
-    elif (book == ASOS):
-        original_comment = ''.join(original_comment.split('SearchASOS!')[1:])
-    elif (book == AFFC):
-        original_comment = ''.join(original_comment.split('SearchAFFC!')[1:])
-    elif (book == ADWD):
-        original_comment = ''.join(original_comment.split('SearchADWD!')[1:])
+        # Only reply to threads with Spoiler All
+        # TODO: Expand to each book spoiler tag scope
+        if re.match("(\(|\[).*(published|(spoiler.*all)|(all.*spoiler)).*(\)|\])", comment.link_title.lower()):
+            # INSENSITIVE
+            search_brackets = re.search('"(.*?)"', original_comment)
+            if search_brackets:
+                search_term = search_brackets.group(0)
+                sensitive = False
 
+            # SENSITIVE
+            search_tri = re.search('\((.*?)\)', original_comment)
+            if search_tri:
+                search_term = search_tri.group(0)
+                sensitive = True
 
-    if comment not in commented:
-        print "in here"
-        # INSENSITIVE
-        search_brackets = re.search('"(.*?)"', original_comment)
-        if search_brackets:
-            search_term = search_brackets.group(0)
-            sensitive = False
+            # Stop pesky searches like "a"
+            if len(search_term) > 3:
+                search_db(comment, search_term, sensitive, book)
 
-        # SENSITIVE
-        search_tri = re.search('\((.*?)\)', original_comment)
-        if search_tri:
-            search_term = search_tri.group(0)
-            sensitive = True
-
-        # Stop pesky searches like "a"
-        if len(search_term) > 3:
-            search_db(comment, search_term, sensitive, book)
-
+        else:
+            message = (
+                "######&#009;\n\n####&#009;\n\n#####&#009;\n\n"
+                ">**Sorry, fulfilling this request would be a spoiler.**\n\n"
+                "_____\n"
+                "^(I'm ASOIAFSearchBot, I will display the occurrence of your "
+                "search term throughout the books. Only currently working in Spoiler All topics.) "
+                "[^(More Info Here)]"
+                "(http://www.reddit.com/r/asoiaf/comments/25amke/"
+                "spoilers_all_introducing_asoiafsearchbot_command/)\n\n"
+            )
+            reply(comment, message)
+ 
 
 def search_db(comment, term, sensitive, book):
     """
-Queries through DB counts occurrences for each chapter
-"""
+    Queries through DB counts occurrences for each chapter
+    """
     search_database = Connect()
 
     # Take away whitespace and quotations at start and end
-    term = term[1:]
-    term = term[:len(term) - 1]
+    term = term[1:-1]
     term = term.strip()
 
-    total = 0 # Total Occurrence
-    row_count = 0 # How many rows have been searched through
-
-
-
+    total = 0  # Total Occurrence
+    row_count = 0  # How many rows have been searched through
 
     if not sensitive:
-        
-
 
         # INSENSITIVE SEARCH
         if book == ALL:
@@ -166,10 +173,8 @@ Queries through DB counts occurrences for each chapter
                     col2=column2
                 )
             )
-        
 
-
-       # Searchs through individual books
+       # Searches through individual books
         else:
             search_database.execute(
             'SELECT * FROM {table} WHERE lower({col1}) REGEXP '
@@ -181,13 +186,13 @@ Queries through DB counts occurrences for each chapter
                     col1=column1,
                     term=term,
                     col2=column2,
-                    book = book
+                    book=book
                 )
             )
 
-
         data = search_database.fetchall()
         list_occurrence = []
+
         # Counts occurrences in each row and
         # adds itself to listOccurrence for message
         for row in data:
@@ -198,17 +203,19 @@ Queries through DB counts occurrences for each chapter
                     number=row[2],
                     chapter=row[3],
                     pov=row[4],
-                    occur=len(re.findall("(\W|^)" + term.lower() + "(\W|$)",row[5].lower()))
+                    occur=len(
+                        re.findall("(\W|^)" + term.lower() +
+                                   "(\W|$)", row[5].lower())
+                    )
                 )
             )
-            total += len(re.findall("(\W|^)" + term.lower() + "(\W|$)",row[5].lower()))
+            total += len(
+                re.findall("(\W|^)" + term.lower() +
+                           "(\W|$)", row[5].lower())
+            )
             row_count += 1
 
-
-
-
     else:
-        
 
         # SENSITIVE SEARCH
         if book == ALL:
@@ -225,9 +232,7 @@ Queries through DB counts occurrences for each chapter
                 )
             )
 
-        
-
-        # Searchs through individual books
+        # Searches through individual books
         else:
             search_database.execute(
                 'SELECT * FROM {table} WHERE {col1} REGEXP BINARY '
@@ -239,15 +244,12 @@ Queries through DB counts occurrences for each chapter
                     col1=column1,
                     term=term,
                     col2=column2,
-                    book = book
+                    book=book
                 )
             )
 
-        
-
-
         data = search_database.fetchall()
-        list_occurrence = []   
+        list_occurrence = []
         # Counts occurrences in each row and
         # adds itself to listOccurrence for message
         for row in data:
@@ -258,74 +260,94 @@ Queries through DB counts occurrences for each chapter
                     number=row[2],
                     chapter=row[3],
                     pov=row[4],
-                    occur=len(re.findall("(\W|^)" + term + "(\W|$)",row[5]))
+                    occur=len(
+                        re.findall("(\W|^)" + term +
+                                   "(\W|$)", row[5])
+                    )
                 )
             )
-            total += len(re.findall("(\W|^)" + term + "(\W|$)",row[5]))
+            total += len(
+                re.findall("(\W|^)" + term +
+                           "(\W|$)", row[5])
+            )
             row_count += 1
 
-
-
     search_database.close()
-    send_message(comment, list_occurrence, row_count, total, term, sensitive)
+    build_message(comment, list_occurrence, row_count, total, term, sensitive)
 
 
-def send_message(comment, occurrence, row_count, total, term, sensitive):
+
+def build_message(comment, occurrence, row_count, total, term, sensitive):
     """
-Sends message to user with the requested information
-"""
+    Sends message to user with the requested information
+    """
 
+    message = ""
+    comment_to_user = (
+        "######&#009;\n\n####&#009;\n\n#####&#009;\n\n"
+        "**SEARCH TERM ({caps}): {term}** \n\n "
+        "Total Occurrence: {occur} \n\n"
+        ">{message}"
+        "\n[Visualization of the search term]"
+        "(http://creative-co.de/labs/songicefire/?terms={term})"
+        "\n_____\n "
+        "^(I'm ASOIAFSearchBot, I will display the occurrence of your "
+        "search term throughout the books. Only currently working in Spoiler All topics.) "
+        "[^(More Info Here)]"
+        "(http://www.reddit.com/r/asoiaf/comments/25amke/"
+        "spoilers_all_introducing_asoiafsearchbot_command/)"
+    )
+
+    # Avoid spam, limit amount of rows
+    if row_count < 31 and total > 0:
+        message += (
+            "| Series| Book| Chapter| Chapter Name| Chapter POV| Occurrence\n"
+        )
+        message += "|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|\n".format(
+            dash='-' * 11
+        )
+        # Each element is changed to one string
+        for row in occurrence:
+            message += row + "\n"
+    elif row_count > 31:
+        message = "**Excess number of chapters.**\n\n"
+    elif total == 0:
+        message = "**Sorry no results.**\n\n"
+
+    case_sensitive = "CASE-SENSITIVE" if sensitive else "CASE-INSENSITIVE"
+
+    comment_to_user = comment_to_user.format(
+        caps=case_sensitive,
+        term=term,
+        occur=total,
+        message=message
+    )
+
+    if sensitive:
+        term_history_sensitive[term] = comment_to_user
+    else:
+        term_history[term.lower()] = comment_to_user
+
+    reply(comment, comment_to_user)
+
+
+
+
+def reply(comment, full_reply):
+    """Replies to a comment with the text provided"""
     try:
-        message = ""
-        comment_to_user = (
-            "#####&#009;\n\n######&#009;\n\n####&#009;\n\n"
-            "**SEARCH TERM ({0}): {1}** \n\n "
-            "Total Occurrence: {2} \n\n"
-            ">{3}"
-            "\n[Visualization of the search term]"
-            "(http://creative-co.de/labs/songicefire/?terms={1})"
-            "\n_____\n "
-            "^(Hello, I'm ASOIAFSearchBot, I will display the occurrence of "
-            "your term and what chapters it was found in. )"
-            "[^(More Info Here)]"
-            "(http://www.reddit.com/r/asoiaf/comments/25amke/"
-            "spoilers_all_introducing_asoiafsearchbot_command/)"
-        )
-
-        # Avoid spam, limit amount of rows
-        if row_count < 30 and total > 0:
-            message += "| Series| Book| Chapter| Chapter Name| Chapter POV| Occurrence\n"
-            message += "|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|\n".format(
-                dash='-' * 11
-            )
-            # Each element is changed to one string
-            for row in occurrence:
-                message += row + "\n"
-        elif row_count > 30:
-            message = "**Excess amount of chapters.**\n\n"
-        elif total == 0:
-            message = "**Sorry no results.**\n\n"
-
-        if sensitive:
-            case_sensitive = "CASE-SENSITIVE"
-        else:
-            case_sensitive = "CASE-INSENSITIVE"
-        
-        comment.reply(
-            comment_to_user.format(
-                case_sensitive, term, total, message
-            )
-        )
-        
-        commented.append(comment)
-        print comment_to_user.format(case_sensitive, term, total, message)
+        comment.reply(full_reply)
+        print full_reply
     except (HTTPError, ConnectionError, Timeout, timeout) as err:
         print err
     except RateLimitExceeded as err:
         print err
         time.sleep(10)
-    except APIException as err: # Catch any less specific API errors
+    except APIException as err:  # Catch any less specific API errors
         print err
+    else:
+        commented.append(comment.id)
+        
 
 # =============================================================================
 # MAIN
@@ -347,19 +369,18 @@ def main():
                 comment_count += 1
                 
                 if "SearchAll!" in comment.body:
-                    parse_comment(comment, ALL )
+                    parse_comment(comment, ALL)
                 elif "SearchAGOT!" in comment.body:
                     parse_comment(comment, AGOT)
-                elif "SearchACOK!" in comment.body: 
+                elif "SearchACOK!" in comment.body:
                     parse_comment(comment, ACOK)
                 elif "SearchASOS!" in comment.body:
                     parse_comment(comment, ASOS)
-                elif "SearchAFFC!" in comment.body: 
+                elif "SearchAFFC!" in comment.body:
                     parse_comment(comment, AFFC)
                 elif "SearchADWD!" in comment.body:
                     parse_comment(comment, ADWD)
-                
-                # end loop after 1000
+
                 if comment_count == 1000:
                     break
             print "sleeping"
@@ -373,21 +394,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

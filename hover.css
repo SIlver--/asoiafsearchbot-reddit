@@ -1,0 +1,17 @@
+/* ASOIAFSearchBot hover to display by /u/Dropping_fruits */
+
+    .comment .md h6+h4+h5+p,.comment .md h6+h4+h5+p+p,.comment .md h6+h4+h5+p+p+blockquote,.comment .md h6+h4+h5+p+p+blockquote+p,.comment .md h6+h4+h5+p+p+blockquote+p+hr,.comment .md h6+h4+h5+p+p+blockquote+p+hr+p {
+        display: none;
+    }
+
+    .comment .md:hover h6+h4+h5+p,.comment .md:hover h6+h4+h5+p+p,.comment .md:hover h6+h4+h5+p+p+blockquote,.comment .md:hover h6+h4+h5+p+p+blockquote+p,.comment .md:hover h6+h4+h5+p+p+blockquote+p+hr,.comment .md:hover h6+h4+h5+p+p+blockquote+p+hr+p {
+        display: block;
+    }
+
+    .comment .md h6+h4+h5:after {
+        content: "ASOIAFSearchBot post. Hover to view";
+    }
+
+    .comment .md:hover h5+h6+h4:after {
+        content: ""
+    }
