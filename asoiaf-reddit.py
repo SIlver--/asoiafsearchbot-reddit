@@ -33,8 +33,8 @@ column2 = config.get("SQL", "column2")
 commented = []
 
 # already searched terms
-term_history = {}
-term_history_sensitive = {}
+termHistory = {}
+termHistorySensitive = {}
 
 # books
 ALL = 'ALL'
@@ -82,9 +82,12 @@ class Books(object):
     _book = None
     _searchTerm = None
     _sensitive = False
+    _searchDb = Connect()
+    _termOccurrence = []
+    _rowOccurrence = None
     _total = None
     _rowCount = None
-    _searchDb = Connect()
+    _message = None
     
     
     def __init__(self, comments):
@@ -111,23 +114,26 @@ class Books(object):
 
     def search_db(self):
         pass
-        if sensitive:
-            mySqlSearch = 
-                'SELECT * FROM {table} WHERE lower({col1}) REGEXP '
-                '"([[:blank:][:punct:]]|^){term}([[:punct:][:blank:]]|$)" '
-                '({book})ORDER BY FIELD'
-                '({col2}, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD"), 2'
-        else:
-            mySqlSearch =
+        if _sensitive:
+            mySqlSearch = (
                 'SELECT * FROM {table} WHERE {col1} REGEXP BINARY '
                 '"([[:blank:][:punct:]]|^){term}([[:punct:][:blank:]]|$)" '
                 '({book})ORDER BY FIELD'
                 '({col2}, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD"), 2'
+            )
+        else:
+            mySqlSearch = (
+                'SELECT * FROM {table} WHERE lower({col1}) REGEXP '
+                '"([[:blank:][:punct:]]|^){term}([[:punct:][:blank:]]|$)" '
+                '({book})ORDER BY FIELD'
+                '({col2}, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD"), 2'
+            )
         
-        # used for searching the book
+
+        # omly search that book
         bookSearch = ""
         if _book != ALL:
-            bookSearch = _book
+            bookSearch = _book + " " # needed to seperate next word
 
         _searchDb.execute(mySqlSearch.format(
                 table = table,
@@ -137,8 +143,87 @@ class Books(object):
                 book = _book
             )
         )
+        _rowOccurrence = searchDb.fetchall()
 
-
+        for row in _rowOccurrence:
+            storyLen = story_findall(row[5])
+            _listOccurrence.append(
+                "| {series}| {book}| {number}| {chapter}| {pov}| {occur}".format(
+                    series = row[0],
+                    book = row[1],
+                    number = row[2],
+                    chapter = row[3],
+                    pov = row[4],
+                    occur = storyLen
+                )
+            _total += storyLen
+                )
+            _rowCount += 1 # track of limits
+        
+        _searchDb.close()
+        
+    def story_findall(self, story):
+        """ 
+        Uses the correct regex for search term 
+        """
+        if _sensitive:
+            return len(re.findall("(\W|^)" + _searchTerm +
+                            "(\W|$)", story)
+        else:
+            return len(re.findall("(\W|^)" + _searchTerm.lower() +
+                            "(\W|$)", story.lower())
+             
+    def build_message(self):
+        commentUser = (
+                "######&#009;\n\n####&#009;\n\n#####&#009;\n\n"
+                "**SEARCH TERM ({caps}): {term}** \n\n "
+                 "Total Occurrence: {totalOccur} \n\n"
+                 ">{message}"
+                 "\n_____\n "
+                 "{visual}"
+                 "^(I'm ASOIAFSearchBot, I will display the occurrence of your "
+                 "search term throughout the books. Only currently working in Spoiler All topics.) "
+                 "[^(More Info Here)]"
+                 "(http://www.reddit.com/r/asoiaf/comments/25amke/"
+                 "spoilers_all_introducing_asoiafsearchbot_command/)"
+            )
+        # Don't show eleement when no results
+        visual = ""
+        if _total > 0:
+            visual = (
+                "\n[Visualization of the search term]"
+                "(http://creative-co.de/labs/songicefire/?terms={term})"
+                ).format(term = _searchTerm)
+        # Avoids spam, limit amount of rows
+        if _rowCount < 31 and _total > 0:
+            _message += (
+                "| Series| Book| Chapter| Chapter Name| Chapter POV| Occurrence\n"
+            )
+            _message += "|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|\n".format(
+                dash='-' * 11
+            )
+            # Each element is changed to one string
+            for row in _listOccurrence:
+                _message += row + "\n"
+        elif row_count => 31:
+                _message = "**Excess number of chapters.**\n\n"
+        elif total == 0:
+                _message = "**Sorry no results.**\n\n"
+                
+        caseSensitive = "CASE-SENSITIVE" if _sensitive else "CASE-INSENSITIVE"    
+        
+        commentUser = commentUser.format(
+            caps = caseSensitive,
+            term = _searchTerm,
+            totalOccur = total,
+            message = _message
+        )
+        
+        if _sensitive:
+            termHistorySensitive[term] = _message
+        else:
+            termHistory[term.lower()] = _message
+        
     def spoiler_book(self):
         #TODO: add the other regular expressions 
         if re.match(
@@ -185,7 +270,7 @@ def main():
                 # Stops pesky searches like "a"
                 if len(allBook._searchTerm) > 3:
                     search_db
-
+                build_message()
 
         except Exception as err:
             print err
