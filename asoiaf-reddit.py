@@ -45,6 +45,8 @@ AFFC = 'AFFC'
 ADWD = 'ADWD'
 NONE = 'NONE'
 
+MAX_ROWS = 30
+
 # =============================================================================
 # CLASSES
 # =============================================================================
@@ -117,12 +119,14 @@ class Books(object):
         if search_tri:
             self._searchTerm = search_tri.group(0)
             self._sensitive = True
-
-    def search_db(self):
-        searchDb = Connect()
+        
         # Take away whitespace and quotations at start and end
         self._searchTerm = self._searchTerm[1:-1]
         self._searchTerm = self._searchTerm.strip()
+        
+        
+    def build_query_sensitive(self):
+
         bookSearch = ""
         if self._book != ALL:
             bookSearch = ('AND {col2} = "{book}" ').format(self._book)
@@ -142,10 +146,11 @@ class Books(object):
                 '({col2}, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD"), 2'
             )
         
+        self.search_db(mySqlSearch)
+        
+    def search_db(self, mySqlSearch):
 
-        # only search that book
-        # needed to seperate next word
-
+        searchDb = Connect()
         searchDb.execute(mySqlSearch.format(
                 table = table,
                 col1 = column1,
@@ -154,8 +159,10 @@ class Books(object):
                 bookSearch = bookSearch
             )
         )
+        
         self._rowOccurrence = searchDb.fetchall()
         storyLen = 0
+        
         for row in self._rowOccurrence:
 
             if self._sensitive:
@@ -202,16 +209,17 @@ class Books(object):
                 "\n[Visualization of the search term]"
                 "(http://creative-co.de/labs/songicefire/?terms={term})"
                 ).format(term = self._searchTerm)
-        # Avoids spam, limit amount of rows
-        if self._rowCount < 31 and self._total > 0:
+                
+        # Avoids spam
+        if self._rowCount <= MAX_ROWS and self._total > 0:
             self._message += (
                 "| Series| Book| Chapter| Chapter Name| Chapter POV| Occurrence\n"
             )
             self._message += "|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|\n".format(dash='-' * 11)
-            # Each element is changed to one string
+            # Each element added as a new row
             for row in self._listOccurrence:
                 self._message += row + "\n"
-        elif self._rowCount >= 31:
+        elif self._rowCount > MAX_ROWS:
                 self._message = "**Excess number of chapters.**\n\n"
         elif self._total == 0:
                 self._message = "**Sorry no results.**\n\n"
@@ -230,9 +238,11 @@ class Books(object):
             termHistorySensitive[self._searchTerm] = self._message
         else:
             termHistory[self._searchTerm.lower()] = self._message
-    def reply(self, comment, tooMuch):
+            
+            
+    def reply(self, comment, spoiler):
         try:
-            if tooMuch:
+            if spoiler:
                 self._commentUser = (
                     "######&#009;\n\n####&#009;\n\n#####&#009;\n\n"
                     ">**Sorry, fulfilling this request would be a spoiler.**\n\n"
@@ -307,7 +317,7 @@ def main():
 
                 # Stops pesky searches like "a"
                 if len(allBooks._searchTerm) > 3: 
-                    allBooks.search_db()
+                    allBooks.build_query_sensitive()
                     allBooks.build_message()
                     allBooks.reply(comment, False)
                 else:
