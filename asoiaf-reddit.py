@@ -157,7 +157,14 @@ class Books(object):
         self._rowOccurrence = searchDb.fetchall()
         storyLen = 0
         for row in self._rowOccurrence:
-            storyLen = self.story_findall(row[5])
+
+            if self._sensitive:
+                storyLen = len(re.findall("(\W|^)" + self._searchTerm +
+                                "(\W|$)", row[5]))
+            else:
+                storyLen = len(re.findall("(\W|^)" + self._searchTerm.lower() +
+                                "(\W|$)", row[5]))
+             
             self._listOccurrence.append(
                 "| {series}| {book}| {number}| {chapter}| {pov}| {occur}".format(
                     series = row[0],
@@ -173,17 +180,7 @@ class Books(object):
         
         searchDb.close()
         
-    def story_findall(self, story):
-        """ 
-        Uses the correct regex for search term 
-        """
-        if self._sensitive:
-            return len(re.findall("(\W|^)" + self._searchTerm +
-                            "(\W|$)", story))
-        else:
-            return len(re.findall("(\W|^)" + self._searchTerm.lower() +
-                            "(\W|$)", story.lower()))
-             
+
     def build_message(self):
         commentUser = (
                 "######&#009;\n\n####&#009;\n\n#####&#009;\n\n"
