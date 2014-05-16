@@ -77,78 +77,84 @@ class Connect(object):
 
 class Books(object):
 
-    _comments = None
-    _comment = None
     _book = None
     _searchTerm = None
     _sensitive = False
-    _searchDb = Connect()
-    _termOccurrence = []
+    _listOccurrence = []
     _rowOccurrence = None
-    _total = None
-    _rowCount = None
+    _total = 0
+    _rowCount = 0
     _commentUser = None
     _message = None
-    
-    
-    def __init__(self, comments):
-        pass
-    def parse_comment(self):
-        pass
-        if _comment.id not in commented and book != NONE:
-            _searchTerm = ''.join(re.split(
+
+    def parse_comment(self, comment):
+        if comment.id not in commented and self._book != NONE:
+            self._searchTerm = ''.join(re.split(
                                     r'Search(All|AGOT|ACOK|ASOS|AFFC|ADWD)!', 
-                                    _searchTerm)[2:]
+                                    comment.body)[2:]
                                 )
+
             # INSENSITIVE
-            search_brackets = re.search('"(.*?)"', _searchTerm)
+            search_brackets = re.search('"(.*?)"', self._searchTerm)
             if search_brackets:
-                _searchTerm = search_brackets.group(0)
-                _sensitive = False
+                self._searchTerm = search_brackets.group(0)
+                self._sensitive = False
             
 
             # SENSITIVE
-            search_tri = re.search('\((.*?)\)', _searchTerm)
+            search_tri = re.search('\((.*?)\)', self._searchTerm)
             if search_tri:
-                _searchTerm = search_tri.group(0)
-                _sensitive = True
+                self._searchTerm = search_tri.group(0)
+                self._sensitive = True
 
     def search_db(self):
-        pass
-        if _sensitive:
+        searchDb = Connect()
+        # Take away whitespace and quotations at start and end
+        self._searchTerm = self._searchTerm[1:-1]
+        self._searchTerm = self._searchTerm.strip()
+        bookSearch = ""
+        if self._book != ALL:
+            bookSearch = ('AND {col2} = "{book}" ').format(self._book)
+
+        if self._sensitive:
             mySqlSearch = (
                 'SELECT * FROM {table} WHERE {col1} REGEXP BINARY '
                 '"([[:blank:][:punct:]]|^){term}([[:punct:][:blank:]]|$)" '
-                '({book})ORDER BY FIELD'
+                '{bookSearch}ORDER BY FIELD'
                 '({col2}, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD"), 2'
             )
         else:
             mySqlSearch = (
                 'SELECT * FROM {table} WHERE lower({col1}) REGEXP '
                 '"([[:blank:][:punct:]]|^){term}([[:punct:][:blank:]]|$)" '
-                '({book})ORDER BY FIELD'
+                '{bookSearch}ORDER BY FIELD'
                 '({col2}, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD"), 2'
             )
         
 
-        # omly search that book
-        bookSearch = ""
-        if _book != ALL:
-            bookSearch = _book + " " # needed to seperate next word
-
-        _searchDb.execute(mySqlSearch.format(
+        # only search that book
+        # needed to seperate next word
+        """
+        print mySqlSearch.format(
                 table = table,
-                col1 = column1
-                term = _searchTerm,
+                col1 = column1,
+                term = self._searchTerm,
                 col2 = column2,
-                book = _book
+                bookSearch = bookSearch
+            )"""
+        searchDb.execute(mySqlSearch.format(
+                table = table,
+                col1 = column1,
+                term = self._searchTerm,
+                col2 = column2,
+                bookSearch = bookSearch
             )
         )
-        _rowOccurrence = searchDb.fetchall()
-
-        for row in _rowOccurrence:
-            storyLen = story_findall(row[5])
-            _listOccurrence.append(
+        self._rowOccurrence = searchDb.fetchall()
+        storyLen = 0
+        for row in self._rowOccurrence:
+            storyLen = self.story_findall(row[5])
+            self._listOccurrence.append(
                 "| {series}| {book}| {number}| {chapter}| {pov}| {occur}".format(
                     series = row[0],
                     book = row[1],
@@ -157,22 +163,22 @@ class Books(object):
                     pov = row[4],
                     occur = storyLen
                 )
-            _total += storyLen
-                )
-            _rowCount += 1 # track of limits
+            )
+            self._total += storyLen
+            self._rowCount += 1 # track of limits
         
-        _searchDb.close()
+        searchDb.close()
         
     def story_findall(self, story):
         """ 
         Uses the correct regex for search term 
         """
-        if _sensitive:
-            return len(re.findall("(\W|^)" + _searchTerm +
-                            "(\W|$)", story)
+        if self._sensitive:
+            return len(re.findall("(\W|^)" + self._searchTerm +
+                            "(\W|$)", story))
         else:
-            return len(re.findall("(\W|^)" + _searchTerm.lower() +
-                            "(\W|$)", story.lower())
+            return len(re.findall("(\W|^)" + self._searchTerm.lower() +
+                            "(\W|$)", story.lower()))
              
     def build_message(self):
         commentUser = (
@@ -190,44 +196,45 @@ class Books(object):
             )
         # Don't show eleement when no results
         visual = ""
-        if _total > 0:
+        if self._total > 0:
             visual = (
                 "\n[Visualization of the search term]"
                 "(http://creative-co.de/labs/songicefire/?terms={term})"
-                ).format(term = _searchTerm)
+                ).format(term = self._searchTerm)
         # Avoids spam, limit amount of rows
-        if _rowCount < 31 and _total > 0:
-            _message += (
+        if self._rowCount < 31 and self._total > 0:
+            self._message += (
                 "| Series| Book| Chapter| Chapter Name| Chapter POV| Occurrence\n"
             )
-            _message += "|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|\n".format(
+            self._message += "|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|\n".format(
                 dash='-' * 11
             )
             # Each element is changed to one string
-            for row in _listOccurrence:
-                _message += row + "\n"
-        elif _rowCount => 31:
-                _message = "**Excess number of chapters.**\n\n"
-        elif _total == 0:
-                _message = "**Sorry no results.**\n\n"
+            for row in self._listOccurrence:
+                self._message += row + "\n"
+        elif self._rowCount >= 31:
+                self._message = "**Excess number of chapters.**\n\n"
+        elif self._total == 0:
+                self._message = "**Sorry no results.**\n\n"
                 
-        caseSensitive = "CASE-SENSITIVE" if _sensitive else "CASE-INSENSITIVE"    
+        caseSensitive = "CASE-SENSITIVE" if self._sensitive else "CASE-INSENSITIVE"    
         
-        _commentUser = commentUser.format(
+        self._commentUser = commentUser.format(
             caps = caseSensitive,
-            term = _searchTerm,
-            totalOccur = total,
-            message = _message
+            term = self._searchTerm,
+            totalOccur = self._total,
+            message = self._message,
+            visual = visual
         )
         
-        if _sensitive:
-            termHistorySensitive[term] = _message
+        if self._sensitive:
+            termHistorySensitive[self._searchTerm] = self._message
         else:
-            termHistory[term.lower()] = _message
-    def reply(self):
+            termHistory[self._searchTerm.lower()] = self._message
+    def reply(self, comment):
         try:
             #comment.reply(_commentUser)
-            print _commentUser
+            print self._commentUser
         except (HTTPError, ConnectionError, Timeout, timeout) as err:
             print err
         except RateLimitExceeded as err:
@@ -238,19 +245,19 @@ class Books(object):
         else:
             commented.append(comment.id)
 
-    def spoiler_book(self):
-        #TODO: add the other regular expressions 
+    def spoiler_book(self, comment):
+        #TODO: add the other regular expressions
+
         if re.match(
             "(\(|\[).*(published|(spoiler.*all)|(all.*spoiler)).*(\)|\])", 
-            _comment.link_title.lower()
+            comment.link_title.lower()
         ):
-            _book = ALL
+            self._book = ALL
         if re.match(
             "REGEX HERE",
-            _comment.link_title.lower()
+            comment.link_title.lower()
         ):
-            _book = AGOT
-
+            self._book = AGOT
 # =============================================================================
 # MAIN
 # =============================================================================
@@ -272,22 +279,24 @@ def main():
         print err
 
     while True:
-        try:
-            commentCount = 0
-            allBooks = Books()
-            for comment in praw.helpers.comment_stream(
-                reddit, 'asoiaftest', limit = None, verbosity = 0
-            ):
-                comment_count += 1
-                spoiler_book()
-                parse_comment()
-                # Stops pesky searches like "a"
-                if len(allBook._searchTerm) > 3:
-                    search_db
-                build_message()
+        #try:
+        commentCount = 0
+        comments = praw.helpers.comment_stream(
+            reddit, 'asoiaftest', limit = 100, verbosity = 0
+        )
+        allBooks = Books()
+        for comment in comments:
+            commentCount += 1
+            allBooks.spoiler_book(comment)
+            allBooks.parse_comment(comment)
+            # Stops pesky searches like "a"
+            if len(allBooks._searchTerm) > 3:
+                allBooks.search_db()
+                allBooks.build_message()
+                allBooks.reply(comment)
 
-        except Exception as err:
-            print err
+        #except Exception as err:
+            #print err
 # =============================================================================
 # RUNNER
 # =============================================================================
