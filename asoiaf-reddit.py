@@ -76,36 +76,47 @@ class Connect(object):
         self.connection.close()
 
 class Books(object):
-
-    _book = None
-    _searchTerm = None
+        
+    _book = NONE
+    _searchTerm = ""
     _sensitive = False
     _listOccurrence = []
-    _rowOccurrence = None
+    _rowOccurrence = 0
     _total = 0
     _rowCount = 0
-    _commentUser = None
-    _message = None
+    _commentUser = ""
+    _message = ""
+
+    def __init__(self):
+        self._book = NONE
+        self._searchTerm = ""
+        self._sensitive = False
+        self._listOccurrence = []
+        self._rowOccurrence = 0
+        self._total = 0
+        self._rowCount = 0
+        self._commentUser = ""
+        self._message = ""
 
     def parse_comment(self, comment):
-        if comment.id not in commented and self._book != NONE:
-            self._searchTerm = ''.join(re.split(
-                                    r'Search(All|AGOT|ACOK|ASOS|AFFC|ADWD)!', 
-                                    comment.body)[2:]
-                                )
 
-            # INSENSITIVE
-            search_brackets = re.search('"(.*?)"', self._searchTerm)
-            if search_brackets:
-                self._searchTerm = search_brackets.group(0)
-                self._sensitive = False
-            
+        self._searchTerm = ''.join(re.split(
+                                r'Search(All|AGOT|ACOK|ASOS|AFFC|ADWD)!', 
+                                comment.body)[2:]
+                            )
 
-            # SENSITIVE
-            search_tri = re.search('\((.*?)\)', self._searchTerm)
-            if search_tri:
-                self._searchTerm = search_tri.group(0)
-                self._sensitive = True
+        # INSENSITIVE
+        search_brackets = re.search('"(.*?)"', self._searchTerm)
+        if search_brackets:
+            self._searchTerm = search_brackets.group(0)
+            self._sensitive = False
+        
+
+        # SENSITIVE
+        search_tri = re.search('\((.*?)\)', self._searchTerm)
+        if search_tri:
+            self._searchTerm = search_tri.group(0)
+            self._sensitive = True
 
     def search_db(self):
         searchDb = Connect()
@@ -134,14 +145,7 @@ class Books(object):
 
         # only search that book
         # needed to seperate next word
-        """
-        print mySqlSearch.format(
-                table = table,
-                col1 = column1,
-                term = self._searchTerm,
-                col2 = column2,
-                bookSearch = bookSearch
-            )"""
+
         searchDb.execute(mySqlSearch.format(
                 table = table,
                 col1 = column1,
@@ -184,15 +188,15 @@ class Books(object):
         commentUser = (
                 "######&#009;\n\n####&#009;\n\n#####&#009;\n\n"
                 "**SEARCH TERM ({caps}): {term}** \n\n "
-                 "Total Occurrence: {totalOccur} \n\n"
-                 ">{message}"
-                 "\n_____\n "
-                 "{visual}"
-                 "^(I'm ASOIAFSearchBot, I will display the occurrence of your "
-                 "search term throughout the books. Only currently working in Spoiler All topics.) "
-                 "[^(More Info Here)]"
-                 "(http://www.reddit.com/r/asoiaf/comments/25amke/"
-                 "spoilers_all_introducing_asoiafsearchbot_command/)"
+                "Total Occurrence: {totalOccur} \n\n"
+                ">{message}"
+                "{visual}"
+                "\n_____\n^(I'm ASOIAFSearchBot, I will display the occurrence "
+                "of your search term throughout the books. " 
+                "Only currently working in Spoiler All topics.) "
+                "[^(More Info Here)]"
+                "(http://www.reddit.com/r/asoiaf/comments/25amke/"
+                "spoilers_all_introducing_asoiafsearchbot_command/)"
             )
         # Don't show eleement when no results
         visual = ""
@@ -206,9 +210,7 @@ class Books(object):
             self._message += (
                 "| Series| Book| Chapter| Chapter Name| Chapter POV| Occurrence\n"
             )
-            self._message += "|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|\n".format(
-                dash='-' * 11
-            )
+            self._message += "|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|\n".format(dash='-' * 11)
             # Each element is changed to one string
             for row in self._listOccurrence:
                 self._message += row + "\n"
@@ -231,10 +233,22 @@ class Books(object):
             termHistorySensitive[self._searchTerm] = self._message
         else:
             termHistory[self._searchTerm.lower()] = self._message
-    def reply(self, comment):
+    def reply(self, comment, tooMuch):
         try:
-            #comment.reply(_commentUser)
+            if tooMuch:
+                self._commentUser = (
+                    "######&#009;\n\n####&#009;\n\n#####&#009;\n\n"
+                    ">**Sorry, fulfilling this request would be a spoiler.**\n\n"
+                    "\n_____\n^(I'm ASOIAFSearchBot, I will display the occurrence "
+                    "of your search term throughout the books. " 
+                    "Only currently working in Spoiler All topics.) "
+                    "[^(More Info Here)]"
+                    "(http://www.reddit.com/r/asoiaf/comments/25amke/"
+                    "spoilers_all_introducing_asoiafsearchbot_command/)"
+                )
             print self._commentUser
+            comment.reply(self._commentUser)
+
         except (HTTPError, ConnectionError, Timeout, timeout) as err:
             print err
         except RateLimitExceeded as err:
@@ -249,15 +263,11 @@ class Books(object):
         #TODO: add the other regular expressions
 
         if re.match(
-            "(\(|\[).*(published|(spoiler.*all)|(all.*spoiler)).*(\)|\])", 
+            "(\(|\[).*(published|(spoiler.*all)|"
+            "(all.*spoiler)).*(\)|\])", 
             comment.link_title.lower()
         ):
             self._book = ALL
-        if re.match(
-            "REGEX HERE",
-            comment.link_title.lower()
-        ):
-            self._book = AGOT
 # =============================================================================
 # MAIN
 # =============================================================================
@@ -284,16 +294,28 @@ def main():
         comments = praw.helpers.comment_stream(
             reddit, 'asoiaftest', limit = 100, verbosity = 0
         )
-        allBooks = Books()
+        
         for comment in comments:
+
+            allBooks = Books()
             commentCount += 1
-            allBooks.spoiler_book(comment)
-            allBooks.parse_comment(comment)
-            # Stops pesky searches like "a"
-            if len(allBooks._searchTerm) > 3:
-                allBooks.search_db()
-                allBooks.build_message()
-                allBooks.reply(comment)
+            if re.search('Search(All|AGOT|ACOK|ASOS|AFFC|ADWD)!', 
+                comment.body) is not None:
+
+                allBooks.spoiler_book(comment)
+                if allBooks._book != NONE:
+                    allBooks.parse_comment(comment)
+                else:
+                    allBooks.reply(comment, True)
+
+                # Stops pesky searches like "a"
+                if len(allBooks._searchTerm) > 3: 
+                    allBooks.search_db()
+                    allBooks.build_message()
+                    allBooks.reply(comment, False)
+                else:
+                    commented.append(comment.id)
+ 
 
         #except Exception as err:
             #print err
@@ -303,4 +325,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-    
