@@ -87,6 +87,7 @@ class Books(object):
     _rowOccurrence = None
     _total = None
     _rowCount = None
+    _commentUser = None
     _message = None
     
     
@@ -205,14 +206,14 @@ class Books(object):
             # Each element is changed to one string
             for row in _listOccurrence:
                 _message += row + "\n"
-        elif row_count => 31:
+        elif _rowCount => 31:
                 _message = "**Excess number of chapters.**\n\n"
-        elif total == 0:
+        elif _total == 0:
                 _message = "**Sorry no results.**\n\n"
                 
         caseSensitive = "CASE-SENSITIVE" if _sensitive else "CASE-INSENSITIVE"    
         
-        commentUser = commentUser.format(
+        _commentUser = commentUser.format(
             caps = caseSensitive,
             term = _searchTerm,
             totalOccur = total,
@@ -223,7 +224,20 @@ class Books(object):
             termHistorySensitive[term] = _message
         else:
             termHistory[term.lower()] = _message
-        
+    def reply(self):
+        try:
+            #comment.reply(_commentUser)
+            print _commentUser
+        except (HTTPError, ConnectionError, Timeout, timeout) as err:
+            print err
+        except RateLimitExceeded as err:
+            print err
+            time.sleep(10)
+        except APIException as err: # Catch any less specific API errors
+            print err
+        else:
+            commented.append(comment.id)
+
     def spoiler_book(self):
         #TODO: add the other regular expressions 
         if re.match(
@@ -262,7 +276,7 @@ def main():
             commentCount = 0
             allBooks = Books()
             for comment in praw.helpers.comment_stream(
-                reddit, 'asoiaf', limit = None, verbosity = 0
+                reddit, 'asoiaftest', limit = None, verbosity = 0
             ):
                 comment_count += 1
                 spoiler_book()
