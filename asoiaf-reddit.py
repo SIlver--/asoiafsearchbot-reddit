@@ -29,13 +29,6 @@ table = config.get("SQL", "table")
 column1 = config.get("SQL", "column1")
 column2 = config.get("SQL", "column2")
 
-# commented already messaged are appended to avoid messaging again
-commented = []
-
-# already searched terms
-termHistory = {}
-termHistorySensitive = {}
-
 # books
 ALL = 'ALL'
 AGOT = 'AGOT'
@@ -78,18 +71,16 @@ class Connect(object):
         self.connection.close()
 
 class Books(object):
+    # commented already messaged are appended to avoid messaging again
+    commented = []
+    
+    # already searched terms
+    # TODO: Make this functionality
+    termHistory = {}
+    termHistorySensitive = {}
         
-    _book = NONE
-    _searchTerm = ""
-    _sensitive = False
-    _listOccurrence = []
-    _rowOccurrence = 0
-    _total = 0
-    _rowCount = 0
-    _commentUser = ""
-    _message = ""
-
-    def __init__(self):
+    def __init__(self, comment):
+        self.comment = comment
         self._book = NONE
         self._searchTerm = ""
         self._sensitive = False
@@ -100,11 +91,12 @@ class Books(object):
         self._commentUser = ""
         self._message = ""
 
-    def parse_comment(self, comment):
+    def parse_comment(self):
 
+        # Leaves only Search.! "Term"
         self._searchTerm = ''.join(re.split(
                                 r'Search(All|AGOT|ACOK|ASOS|AFFC|ADWD)!', 
-                                comment.body)[2:]
+                                self.comment.body)[2:]
                             )
 
         # INSENSITIVE
@@ -240,7 +232,7 @@ class Books(object):
             termHistory[self._searchTerm.lower()] = self._message
             
             
-    def reply(self, comment, spoiler):
+    def reply(self, spoiler):
         try:
             if spoiler:
                 self._commentUser = (
@@ -254,7 +246,7 @@ class Books(object):
                     "spoilers_all_introducing_asoiafsearchbot_command/)"
                 )
             print self._commentUser
-            comment.reply(self._commentUser)
+            self.comment.reply(self._commentUser)
 
         except (HTTPError, ConnectionError, Timeout, timeout) as err:
             print err
@@ -264,15 +256,15 @@ class Books(object):
         except APIException as err: # Catch any less specific API errors
             print err
         else:
-            commented.append(comment.id)
+            self.commented.append(self.comment.id)
 
-    def spoiler_book(self, comment):
+    def spoiler_book(self):
         #TODO: add the other regular expressions
 
         if re.match(
             "(\(|\[).*(published|(spoiler.*all)|"
             "(all.*spoiler)).*(\)|\])", 
-            comment.link_title.lower()
+            self.comment.link_title.lower()
         ):
             self._book = ALL
 # =============================================================================
@@ -304,24 +296,27 @@ def main():
         
         for comment in comments:
 
-            allBooks = Books()
+            allBooks = Books(comment)
             commentCount += 1
+            # Bot can't post in no spoilers
+            # Bot will not reply to same message
             if re.search('Search(All|AGOT|ACOK|ASOS|AFFC|ADWD)!', 
-                comment.body) is not None:
+                comment.body) is not None and 
+                comment.id not in allBooks.commented:
 
-                allBooks.spoiler_book(comment)
+                allBooks.spoiler_book()
                 if allBooks._book != NONE:
-                    allBooks.parse_comment(comment)
+                    allBooks.parse_comment()
                 else:
-                    allBooks.reply(comment, True)
+                    allBooks.reply(True)
 
                 # Stops pesky searches like "a"
                 if len(allBooks._searchTerm) > 3: 
                     allBooks.build_query_sensitive()
                     allBooks.build_message()
-                    allBooks.reply(comment, False)
+                    allBooks.reply(False)
                 else:
-                    commented.append(comment.id)
+                    allBooks.commented.append(comment.id)
  
 
         #except Exception as err:
