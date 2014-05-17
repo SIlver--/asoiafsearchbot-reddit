@@ -70,6 +70,10 @@ class Connect(object):
         self.connection.close()
 
 class Books(object):
+    """
+    Book class, holds methods to find the correct occurrence
+    of the given search term in each chapter.
+    """
     # commented already messaged are appended to avoid messaging again
     commented = []
     
@@ -91,8 +95,16 @@ class Books(object):
         self._message = ""
 
     def parse_comment(self):
+        """
+        Changes user comment from:
+            Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+            ullam laoreet volutpat accumsan.
+            SearchAll! "SEARCH TERM"
+        into finally just:
+            Search Term
+        """
 
-        # Leaves only Search.! "Term"
+        # Removes everything before Search.!
         self._searchTerm = ''.join(re.split(
                                 r'Search(All|AGOT|ACOK|ASOS|AFFC|ADWD)!', 
                                 self.comment.body)[2:]
@@ -103,6 +115,7 @@ class Books(object):
         if search_brackets:
             self._searchTerm = search_brackets.group(0)
             self._sensitive = False
+            self._sensitive = self._sensitive.lower()
         
 
         # SENSITIVE
@@ -111,14 +124,18 @@ class Books(object):
             self._searchTerm = search_tri.group(0)
             self._sensitive = True
         
-        # Take away whitespace and quotations at start and end
+        # quotations at start and end
         self._searchTerm = self._searchTerm[1:-1]
         self._searchTerm = self._searchTerm.strip()
         
         
     def build_query_sensitive(self):
-
+        """
+        Uses the correct mySql statement based off user's stated 
+        case-sensitive
+        """
         bookSearch = ""
+        
         if self._book != ALL:
             bookSearch = ('AND {col2} = "{book}" ').format(self._book)
 
@@ -137,11 +154,16 @@ class Books(object):
                 '({col2}, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD"), 2'
             )
         
-        self.search_db(mySqlSearch)
+        self.search_db(mySqlSearch, bookSearch)
         
-    def search_db(self, mySqlSearch):
+    def search_db(self, mySqlSearch, bookSearch):
+        """
+        Search through the database for which chapter holds the search
+        term. Then count each use in said chapter.
+        """
 
         searchDb = Connect()
+        # Find which chapter the word may appear
         searchDb.execute(mySqlSearch.format(
                 table = table,
                 col1 = column1,
@@ -153,16 +175,17 @@ class Books(object):
         
         self._rowOccurrence = searchDb.fetchall()
         storyLen = 0
-        
+        # Once the chapter is found where the word appears
+        # loop will count occurence for each row
+        # builds each row for the table
         for row in self._rowOccurrence:
-
-            if self._sensitive:
-                storyLen = len(re.findall("(\W|^)" + self._searchTerm +
+            
+            # Stores each found word as a list of strings
+            # len used to count number of elements in the list
+            storyLen = len(re.findall("(\W|^)" + self._searchTerm +
                                 "(\W|$)", row[5]))
-            else:
-                storyLen = len(re.findall("(\W|^)" + self._searchTerm.lower() +
-                                "(\W|$)", row[5]))
-             
+                                
+            # Formats each row of the table nicely
             self._listOccurrence.append(
                 "| {series}| {book}| {number}| {chapter}| {pov}| {occur}".format(
                     series = row[0],
@@ -174,12 +197,15 @@ class Books(object):
                 )
             )
             self._total += storyLen
-            self._rowCount += 1 # track of limits
+            self._rowCount += 1
         
         searchDb.close()
         
 
     def build_message(self):
+        """
+        Build message that will be sent to the reddit user
+        """
         commentUser = (
                 "######&#009;\n\n####&#009;\n\n#####&#009;\n\n"
                 "**SEARCH TERM ({caps}): {term}** \n\n "
@@ -193,7 +219,7 @@ class Books(object):
                 "(http://www.reddit.com/r/asoiaf/comments/25amke/"
                 "spoilers_all_introducing_asoiafsearchbot_command/)"
             )
-        # Don't show eleement when no results
+        # Don't show visual when no results
         visual = ""
         if self._total > 0:
             visual = (
@@ -201,13 +227,13 @@ class Books(object):
                 "(http://creative-co.de/labs/songicefire/?terms={term})"
                 ).format(term = self._searchTerm)
                 
-        # Avoids spam
+        # Avoids spam and builds table heading only when condition is met
         if self._rowCount <= MAX_ROWS and self._total > 0:
             self._message += (
                 "| Series| Book| Chapter| Chapter Name| Chapter POV| Occurrence\n"
             )
             self._message += "|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|\n".format(dash='-' * 11)
-            # Each element added as a new row
+            # Each element added as a new row with new line
             for row in self._listOccurrence:
                 self._message += row + "\n"
         elif self._rowCount > MAX_ROWS:
@@ -225,13 +251,18 @@ class Books(object):
             visual = visual
         )
         
+        # used for caching
         if self._sensitive:
             termHistorySensitive[self._searchTerm] = self._message
         else:
-            termHistory[self._searchTerm.lower()] = self._message
+            termHistory[self._searchTerm] = self._message
             
             
     def reply(self, spoiler=False):
+        """
+        Reply to reddit user. If the search would be a spoiler
+        Send different message.
+        """
         try:
             if spoiler:
                 self._commentUser = (
@@ -258,6 +289,11 @@ class Books(object):
             self.commented.append(self.comment.id)
 
     def spoilerbook(self):
+        """
+        Decides what the scope of spoilers based of the title.
+        This means that searchADWD! Shouldn't be used in (Spoiler AGOT).
+        """
+        
         #TODO: add the other regular expressions
 
         if re.match(
@@ -310,6 +346,7 @@ def main():
                 allBooks.reply()
 
             else:
+                # Sends apporiate message if it's a spoiler
                 allBooks.reply(True)
  
 
