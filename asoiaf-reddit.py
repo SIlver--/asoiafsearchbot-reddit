@@ -347,7 +347,7 @@ def main():
 
             else:
                 # Sends apporiate message if it's a spoiler
-                allBooks.reply(True)
+                allBooks.reply(spoiler=True)
  
 
         #except Exception as err:
