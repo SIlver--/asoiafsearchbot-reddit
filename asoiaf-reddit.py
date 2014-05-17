@@ -36,7 +36,6 @@ ACOK = 'ACOK'
 ASOS = 'ASOS'
 AFFC = 'AFFC'
 ADWD = 'ADWD'
-NONE = 'NONE'
 
 MAX_ROWS = 30
 
@@ -81,7 +80,7 @@ class Books(object):
         
     def __init__(self, comment):
         self.comment = comment
-        self._book = NONE
+        self._book = None
         self._searchTerm = ""
         self._sensitive = False
         self._listOccurrence = []
@@ -232,7 +231,7 @@ class Books(object):
             termHistory[self._searchTerm.lower()] = self._message
             
             
-    def reply(self, spoiler):
+    def reply(self, spoiler=False):
         try:
             if spoiler:
                 self._commentUser = (
@@ -258,7 +257,7 @@ class Books(object):
         else:
             self.commented.append(self.comment.id)
 
-    def spoiler_book(self):
+    def spoilerbook(self):
         #TODO: add the other regular expressions
 
         if re.match(
@@ -305,18 +304,13 @@ def main():
                 comment.id not in allBooks.commented:
 
                 allBooks.spoiler_book()
-                if allBooks._book != NONE:
-                    allBooks.parse_comment()
-                else:
-                    allBooks.reply(True)
+                allBooks.parse_comment()
+                allBooks.build_query_sensitive()
+                allBooks.build_message()
+                allBooks.reply()
 
-                # Stops pesky searches like "a"
-                if len(allBooks._searchTerm) > 3: 
-                    allBooks.build_query_sensitive()
-                    allBooks.build_message()
-                    allBooks.reply(False)
-                else:
-                    allBooks.commented.append(comment.id)
+            else:
+                allBooks.reply(True)
  
 
         #except Exception as err:
