@@ -195,7 +195,7 @@ class Books(object):
         """
 
         searchDb = Connect()
-        
+        """
         print mySqlSearch.format(
                 table = table,
                 col1 = column1,
@@ -203,7 +203,7 @@ class Books(object):
                 col2 = column2,
                 bookQuery = self._bookQuery
             )
-        
+        """
         # Find which chapter the word may appear
         searchDb.execute(mySqlSearch.format(
                 table = table,
@@ -317,7 +317,7 @@ class Books(object):
                     "spoilers_all_introducing_asoiafsearchbot_command/)"
                 )
             print self._commentUser
-            #self.comment.reply(self._commentUser)
+            self.comment.reply(self._commentUser)
 
         except (HTTPError, ConnectionError, Timeout, timeout) as err:
             print err
@@ -387,7 +387,11 @@ def main():
                 allBooks.watch_for_spoilers()
                 # Note: None needs to be explict as this evalutes to
                 # with Spoilers All as it's 0
-                if allBooks.title != None:
+                if (allBooks.title != None and 
+                    # skips when SearchCOMMAND! is higher than (Spoiler Tag)
+                    allBooks.bookCommand.value <= allBooks.title.value
+                    ):
+
                     allBooks.which_book()
                     allBooks.parse_comment()
                     allBooks.build_query_sensitive()
