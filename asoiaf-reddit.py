@@ -114,7 +114,7 @@ def parse_comment(comment, book):
 
         # Only reply to threads with Spoiler All
         # TODO: Expand to each book spoiler tag scope
-        if re.match("(\(|\[).*(published|(spoiler.*all)|(all.*spoiler)).*(\)|\])", comment.link_title.lower()):
+        if re.search("(\(|\[).*(published|(spoiler.*all)|(all.*spoiler)).*(\)|\])", comment.link_title.lower()):
             # INSENSITIVE
             search_brackets = re.search('"(.*?)"', original_comment)
             if search_brackets:
@@ -292,7 +292,8 @@ def build_message(comment, occurrence, row_count, total, term, sensitive):
         "(http://creative-co.de/labs/songicefire/?terms={term})"
         "\n_____\n "
         "^(I'm ASOIAFSearchBot, I will display the occurrence of your "
-        "search term throughout the books. Only currently working in Spoiler All topics.) "
+        "search term throughout the books.)"
+        "^(Only currently working in Spoiler All topics.) "
         "[^(More Info Here)]"
         "(http://www.reddit.com/r/asoiaf/comments/25amke/"
         "spoilers_all_introducing_asoiafsearchbot_command/)"
@@ -337,7 +338,7 @@ def reply(comment, full_reply):
     """Replies to a comment with the text provided"""
     try:
         comment.reply(full_reply)
-        print full_reply
+	commented.append(comment.id)
     except (HTTPError, ConnectionError, Timeout, timeout) as err:
         print err
     except RateLimitExceeded as err:
@@ -346,6 +347,7 @@ def reply(comment, full_reply):
     except APIException as err:  # Catch any less specific API errors
         print err
     else:
+        print full_reply
         commented.append(comment.id)
         
 
@@ -360,12 +362,11 @@ def main():
         try:
             print "start"
             # Grab all new comments from /r/asoiaf
-            comments = praw.helpers.comment_stream(
-                reddit, 'asoiaf', limit=None, verbosity=0
-            )
             comment_count = 0
             # Loop through each comment
-            for comment in comments:
+            for comment in praw.helpers.comment_stream(
+                reddit, 'asoiaf', limit=100, verbosity=0
+            ):
                 comment_count += 1
                 
                 if "SearchAll!" in comment.body:
@@ -381,7 +382,7 @@ def main():
                 elif "SearchADWD!" in comment.body:
                     parse_comment(comment, ADWD)
 
-                if comment_count == 1000:
+                if comment_count == 100:
                     break
             print "sleeping"
             time.sleep(25)
