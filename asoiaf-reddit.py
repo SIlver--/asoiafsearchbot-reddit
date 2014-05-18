@@ -63,12 +63,13 @@ class Connect(object):
         self.connection.close()
 
 class Title(Enum):
+    All = 0
     AGOT = 1
     ACOK = 2
     ASOS = 3
     AFFC = 4
     ADWD = 5
-    All = 6
+
 
 class Books(object):
     """
@@ -88,6 +89,7 @@ class Books(object):
         self.bookCommand = None
         self.title = None
         self._searchTerm = ""
+        self._bookQuery = ""
         self._sensitive = False
         self._listOccurrence = []
         self._rowOccurrence = 0
@@ -130,57 +132,76 @@ class Books(object):
         self._searchTerm = self._searchTerm[1:-1]
         self._searchTerm = self._searchTerm.strip()
         
-        
+    def which_book(self):
+        """
+        self.title holds the farthest book in the series the 
+        SQL statement should go. So if the title is ASOS it will only 
+        do every occurence up to ASOS ONLY for SearchAll!
+        """
+
+        # Starts from AGOT ends at what self.title is
+        # Not needed for All(0) because the SQL does it by default         
+        if self.title != 0:
+            # First time requires AND, next are ORs
+            self._bookQuery += ('AND ({col2} = "{book}" '
+                ).format(col2 = column2,
+                        book = 'AGOT')
+            # start the loop after AGOT
+            for x in range(2, self.title+1):
+                # assign current loop the name of the enum's value
+                curBook = Title(x).name
+                # Shouldn't add ORs if it's AGOT
+                if Title(x) != 1: 
+                    self._bookQuery += ('OR {col2} = "{book}" '
+                        ).format(col2 = column2,
+                                book = curBook)                    
+            self._bookQuery += ")" # close the AND in the MSQL
     def build_query_sensitive(self):
         """
         Uses the correct mySql statement based off user's stated 
         case-sensitive
         """
-        bookSearch = ""
-        
-        if self.book != 'All':
-            bookSearch = ('AND {col2} = "{book}" '
-                ).format(col2 = column2,
-                        book = self.bookCommand)
 
         if self._sensitive:
             mySqlSearch = (
                 'SELECT * FROM {table} WHERE {col1} REGEXP BINARY '
                 '"([[:blank:][:punct:]]|^){term}([[:punct:][:blank:]]|$)" '
-                '{bookSearch}ORDER BY FIELD'
+                '{bookQuery}ORDER BY FIELD'
                 '({col2}, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD"), 2'
             )
         else:
             mySqlSearch = (
                 'SELECT * FROM {table} WHERE lower({col1}) REGEXP '
                 '"([[:blank:][:punct:]]|^){term}([[:punct:][:blank:]]|$)" '
-                '{bookSearch}ORDER BY FIELD'
+                '{bookQuery}ORDER BY FIELD'
                 '({col2}, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD"), 2'
             )
         
-        self.search_db(mySqlSearch, bookSearch)
+        self.search_db(mySqlSearch)
         
-    def search_db(self, mySqlSearch, bookSearch):
+    def search_db(self, mySqlSearch):
         """
         Search through the database for which chapter holds the search
         term. Then count each use in said chapter.
         """
 
         searchDb = Connect()
-        # Find which chapter the word may appear
+        
         print mySqlSearch.format(
                 table = table,
                 col1 = column1,
                 term = self._searchTerm,
                 col2 = column2,
-                bookSearch = bookSearch
+                bookQuery = self._bookQuery
             )
+        
+        # Find which chapter the word may appear
         searchDb.execute(mySqlSearch.format(
                 table = table,
                 col1 = column1,
                 term = self._searchTerm,
                 col2 = column2,
-                bookSearch = bookSearch
+                bookQuery = self._bookQuery
             )
         )
         
@@ -307,16 +328,17 @@ class Books(object):
         
         # loop formats each name into the regex
         # then checks regex against the title
-        for name, member in Title.__members__.items():
+        # number used for which_book() loop
+        for name, number in Title.__members__.items():
             # Remove first letter incase of cases like GOT
             regex = ("(\(|\[).*({name}|{nameRemove}).*(\)|\])"
                 ).format(name = name.lower(), nameRemove = name[1:].lower())
-            if re.match(regex, self.comment.link_title.lower()):
-                self.title = name
+            if re.search(regex, self.comment.link_title.lower()):
+                self.title = number.value
     
         # Decides which book the user picked based on the command.
         # SearchAGOT! to SearchADWD!
-        for name, member in Title.__members__.items():
+        for name, number in Title.__members__.items():
             search = ("Search{name}!").format(name = name)
             if search in self.comment.body:
                 self.bookCommand = name     
@@ -351,19 +373,17 @@ def main():
         )
         
         for comment in comments:
-
             allBooks = Books(comment)
-
             if re.search('Search(All|AGOT|ACOK|ASOS|AFFC|ADWD)!', comment.body):
-
                 allBooks.watch_for_spoilers()
-                if allBooks.title:
-                    
+                # Note: None needs to be explict as this evalutes to
+                # with Spoilers All as it's 0
+                if allBooks.title != None:
+                    allBooks.which_book()
                     allBooks.parse_comment()
                     allBooks.build_query_sensitive()
                     allBooks.build_message()
                     allBooks.reply()
-
                 else:
                     # Sends apporiate message if it's a spoiler
                     allBooks.reply(spoiler=True)
