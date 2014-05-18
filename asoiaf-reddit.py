@@ -90,7 +90,7 @@ class Books(object):
         self.title = None
         self._searchTerm = ""
         self._bookQuery = ""
-        self._sensitive = False
+        self._sensitive = None
         self._listOccurrence = []
         self._rowOccurrence = 0
         self._total = 0
@@ -219,11 +219,14 @@ class Books(object):
         # loop will count occurence for each row
         # builds each row for the table
         for row in self._rowOccurrence:
-            
+            # Makes story lower when not sensitive
+            story = row[5]
+            if self._sensitive == False:
+                story = row[5].lower()
             # Stores each found word as a list of strings
             # len used to count number of elements in the list
             storyLen = len(re.findall("(\W|^)" + self._searchTerm +
-                                "(\W|$)", row[5].lower()))
+                                "(\W|$)", story))
                                 
             # Formats each row of the table nicely
             self._listOccurrence.append(
@@ -343,7 +346,12 @@ class Books(object):
                 ).format(name = name.lower(), nameRemove = name[1:].lower())
             if re.search(regex, self.comment.link_title.lower()):
                 self.title = member
-    
+        # these books are not in Title Enum but follows the same guidelines
+        # TODO: Fix when new books are to the database
+        print self.comment.link_title
+        if re.search ("(\(|\[).*(published|twow|d&amp;e|d &amp; e"
+            "|dunk.*egg|p\s?\&amp;\s?q).*(\)|\])", self.comment.link_title.lower()):
+            self.title = Title.All
         # Decides which book the user picked based on the command.
         # SearchAGOT! to SearchADWD!
         for name, member in Title.__members__.items():
