@@ -253,11 +253,11 @@ class Books(object):
                 "######&#009;\n\n####&#009;\n\n#####&#009;\n\n"
                 "**SEARCH TERM ({caps}): {term}** \n\n "
                 "Total Occurrence: {totalOccur} \n\n"
+                "**The following is for {book} and under.** \n\n"
                 ">{message}"
                 "{visual}"
                 "\n_____\n^(I'm ASOIAFSearchBot, I will display the occurrence "
-                "of your search term throughout the books. " 
-                "Only currently working in Spoiler All topics.) "
+                "of your search term throughout the books.) " 
                 "[^(More Info Here)]"
                 "(http://www.reddit.com/r/asoiaf/comments/25amke/"
                 "spoilers_all_introducing_asoiafsearchbot_command/)"
@@ -266,7 +266,7 @@ class Books(object):
         visual = ""
         if self._total > 0:
             visual = (
-                "\n[Visualization of the search term]"
+                "\n[Visualization of the search term. May contain unwanted spoilers.]"
                 "(http://creative-co.de/labs/songicefire/?terms={term})"
                 ).format(term = self._searchTerm)
                 
@@ -287,6 +287,7 @@ class Books(object):
         caseSensitive = "CASE-SENSITIVE" if self._sensitive else "CASE-INSENSITIVE"    
         
         self._commentUser = commentUser.format(
+            book = self.title.name,
             caps = caseSensitive,
             term = self._searchTerm,
             totalOccur = self._total,
@@ -312,14 +313,14 @@ class Books(object):
                     "######&#009;\n\n####&#009;\n\n#####&#009;\n\n"
                     ">**Sorry, fulfilling this request would be a spoiler.**\n\n"
                     "\n_____\n^(I'm ASOIAFSearchBot, I will display the occurrence "
-                    "of your search term throughout the books. " 
-                    "Only currently working in Spoiler All topics.) "
+                    "of your search term throughout the books.) " 
                     "[^(More Info Here)]"
                     "(http://www.reddit.com/r/asoiaf/comments/25amke/"
                     "spoilers_all_introducing_asoiafsearchbot_command/)"
                 )
-            print self._commentUser
-            self.comment.reply(self._commentUser)
+            if self.comment.id not in self.commented:
+                print self._commentUser
+                self.comment.reply(self._commentUser)
 
         except (HTTPError, ConnectionError, Timeout, timeout) as err:
             print err
@@ -347,8 +348,7 @@ class Books(object):
             if re.search(regex, self.comment.link_title.lower()):
                 self.title = member
         # these books are not in Title Enum but follows the same guidelines
-        # TODO: Fix when new books are to the database
-        print self.comment.link_title
+        # TODO: Fix when new books are added to the database
         if re.search ("(\(|\[).*(published|twow|d&amp;e|d &amp; e"
             "|dunk.*egg|p\s?\&amp;\s?q).*(\)|\])", self.comment.link_title.lower()):
             self.title = Title.All
@@ -382,38 +382,44 @@ def main():
         print err
 
     while True:
-        #try:
-        commentCount = 0
-        comments = praw.helpers.comment_stream(
-            reddit, 'asoiaftest', limit = 100, verbosity = 0
-        )
-        
-        for comment in comments:
-            allBooks = Books(comment)
-            if re.search('Search(All|AGOT|ACOK|ASOS|AFFC|ADWD)!', comment.body):
-                allBooks.watch_for_spoilers()
-                # Note: None needs to be explict as this evalutes to
-                # with Spoilers All as it's 0
-                if allBooks.title != None:
-                    allBooks.which_book()  
-                    # skips when SearchCOMMAND! is higher than (Spoiler Tag)
-                    if (allBooks.bookCommand.value <= allBooks.title.value or
-                        allBooks.title.value == 0):
-                        allBooks.parse_comment()
-                        allBooks.build_query_sensitive()
-                        allBooks.build_message()
-                        allBooks.reply()
-                    else:
-                        allBooks.reply(spoiler=True)
-                else:
-                    # Sends apporiate message if it's a spoiler
-                    allBooks.reply(spoiler=True)
+        try:
+            comments = praw.helpers.comment_stream(
+                reddit, 'asoiaf', limit = 100, verbosity = 0)
+            commentCount = 0
 
-        #except Exception as err:
-            #print err
+            for comment in comments:
+                commentCount += 1
+                allBooks = Books(comment)
+                if re.search('Search(All|AGOT|ACOK|ASOS|AFFC|ADWD)!', comment.body):
+                    allBooks.watch_for_spoilers()
+                    # Note: None needs to be explict as this evalutes to
+                    # with Spoilers All as it's 0
+                    if allBooks.title != None:
+                        allBooks.which_book()  
+                        # skips when SearchCOMMAND! is higher than (Spoiler Tag)
+                        if (allBooks.bookCommand.value <= allBooks.title.value or
+                            allBooks.title.value == 0):
+                            allBooks.parse_comment()
+                            allBooks.build_query_sensitive()
+                            allBooks.build_message()
+                            allBooks.reply()
+                        else:
+                            allBooks.reply(spoiler=True)
+                    else:
+                        # Sends apporiate message if it's a spoiler
+                        allBooks.reply(spoiler=True)
+                if commentCount == 100:
+                    break
+
+            print "sleeping"
+            time.sleep(25)
+        except Exception as err:
+            print err
 # =============================================================================
 # RUNNER
 # =============================================================================
 
 if __name__ == '__main__':
     main()
+
+
