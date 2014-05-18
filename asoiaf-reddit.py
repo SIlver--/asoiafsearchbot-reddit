@@ -12,6 +12,7 @@ import re
 from requests.exceptions import HTTPError, ConnectionError, Timeout
 from socket import timeout
 import time
+from enum import Enum
 
 # =============================================================================
 # GLOBALS
@@ -28,14 +29,6 @@ db = config.get("SQL", "db")
 table = config.get("SQL", "table")
 column1 = config.get("SQL", "column1")
 column2 = config.get("SQL", "column2")
-
-# books
-ALL = 'ALL'
-AGOT = 'AGOT'
-ACOK = 'ACOK'
-ASOS = 'ASOS'
-AFFC = 'AFFC'
-ADWD = 'ADWD'
 
 MAX_ROWS = 30
 
@@ -69,6 +62,14 @@ class Connect(object):
     def close(self):
         self.connection.close()
 
+class Title(Enum):
+    AGOT = 1
+    ACOK = 2
+    ASOS = 3
+    AFFC = 4
+    ADWD = 5
+    All = 6
+
 class Books(object):
     """
     Book class, holds methods to find the correct occurrence
@@ -84,7 +85,8 @@ class Books(object):
         
     def __init__(self, comment):
         self.comment = comment
-        self._book = None
+        self.bookCommand = None
+        self.title = None
         self._searchTerm = ""
         self._sensitive = False
         self._listOccurrence = []
@@ -115,7 +117,7 @@ class Books(object):
         if search_brackets:
             self._searchTerm = search_brackets.group(0)
             self._sensitive = False
-            self._sensitive = self._sensitive.lower()
+            self._searchTerm = self._searchTerm.lower()
         
 
         # SENSITIVE
@@ -136,8 +138,10 @@ class Books(object):
         """
         bookSearch = ""
         
-        if self._book != ALL:
-            bookSearch = ('AND {col2} = "{book}" ').format(self._book)
+        if self.book != 'All':
+            bookSearch = ('AND {col2} = "{book}" '
+                ).format(col2 = column2,
+                        book = self.bookCommand)
 
         if self._sensitive:
             mySqlSearch = (
@@ -164,6 +168,13 @@ class Books(object):
 
         searchDb = Connect()
         # Find which chapter the word may appear
+        print mySqlSearch.format(
+                table = table,
+                col1 = column1,
+                term = self._searchTerm,
+                col2 = column2,
+                bookSearch = bookSearch
+            )
         searchDb.execute(mySqlSearch.format(
                 table = table,
                 col1 = column1,
@@ -183,7 +194,7 @@ class Books(object):
             # Stores each found word as a list of strings
             # len used to count number of elements in the list
             storyLen = len(re.findall("(\W|^)" + self._searchTerm +
-                                "(\W|$)", row[5]))
+                                "(\W|$)", row[5].lower()))
                                 
             # Formats each row of the table nicely
             self._listOccurrence.append(
@@ -253,9 +264,9 @@ class Books(object):
         
         # used for caching
         if self._sensitive:
-            termHistorySensitive[self._searchTerm] = self._message
+            self.termHistorySensitive[self._searchTerm] = self._message
         else:
-            termHistory[self._searchTerm] = self._message
+            self.termHistory[self._searchTerm] = self._message
             
             
     def reply(self, spoiler=False):
@@ -288,20 +299,30 @@ class Books(object):
         else:
             self.commented.append(self.comment.id)
 
-    def spoilerbook(self):
+    def watch_for_spoilers(self):
         """
         Decides what the scope of spoilers based of the title.
         This means that searchADWD! Shouldn't be used in (Spoiler AGOT).
         """
         
-        #TODO: add the other regular expressions
+        # loop formats each name into the regex
+        # then checks regex against the title
+        for name, member in Title.__members__.items():
+            # Remove first letter incase of cases like GOT
+            regex = ("(\(|\[).*({name}|{nameRemove}).*(\)|\])"
+                ).format(name = name.lower(), nameRemove = name[1:].lower())
+            if re.match(regex, self.comment.link_title.lower()):
+                self.title = name
+    
+        # Decides which book the user picked based on the command.
+        # SearchAGOT! to SearchADWD!
+        for name, member in Title.__members__.items():
+            search = ("Search{name}!").format(name = name)
+            if search in self.comment.body:
+                self.bookCommand = name     
 
-        if re.match(
-            "(\(|\[).*(published|(spoiler.*all)|"
-            "(all.*spoiler)).*(\)|\])", 
-            self.comment.link_title.lower()
-        ):
-            self._book = ALL
+
+
 # =============================================================================
 # MAIN
 # =============================================================================
@@ -332,23 +353,20 @@ def main():
         for comment in comments:
 
             allBooks = Books(comment)
-            commentCount += 1
-            # Bot can't post in no spoilers
-            # Bot will not reply to same message
-            if re.search('Search(All|AGOT|ACOK|ASOS|AFFC|ADWD)!', 
-                comment.body) is not None and 
-                comment.id not in allBooks.commented:
 
-                allBooks.spoiler_book()
-                allBooks.parse_comment()
-                allBooks.build_query_sensitive()
-                allBooks.build_message()
-                allBooks.reply()
+            if re.search('Search(All|AGOT|ACOK|ASOS|AFFC|ADWD)!', comment.body):
 
-            else:
-                # Sends apporiate message if it's a spoiler
-                allBooks.reply(spoiler=True)
- 
+                allBooks.watch_for_spoilers()
+                if allBooks.title:
+                    
+                    allBooks.parse_comment()
+                    allBooks.build_query_sensitive()
+                    allBooks.build_message()
+                    allBooks.reply()
+
+                else:
+                    # Sends apporiate message if it's a spoiler
+                    allBooks.reply(spoiler=True)
 
         #except Exception as err:
             #print err
