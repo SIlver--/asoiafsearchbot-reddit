@@ -139,9 +139,16 @@ class Books(object):
         do every occurence up to ASOS ONLY for SearchAll!
         """
 
+        # Makes sure if the command isn't SearchAll!
+        # That the specific searches will instead be used
+        # example SearchASOS!
+        if self.bookCommand != 'All':
+            self._bookQuery = ('AND {col2} = "{book}"'
+                ).format(col2 = column2,
+                        book = self.bookCommand)
         # Starts from AGOT ends at what self.title is
         # Not needed for All(0) because the SQL does it by default         
-        if self.title != 0:
+        elif self.title != 0:
             # First time requires AND, next are ORs
             self._bookQuery += ('AND ({col2} = "{book}" '
                 ).format(col2 = column2,
@@ -156,6 +163,7 @@ class Books(object):
                         ).format(col2 = column2,
                                 book = curBook)                    
             self._bookQuery += ")" # close the AND in the MSQL
+
     def build_query_sensitive(self):
         """
         Uses the correct mySql statement based off user's stated 
@@ -308,7 +316,7 @@ class Books(object):
                     "spoilers_all_introducing_asoiafsearchbot_command/)"
                 )
             print self._commentUser
-            self.comment.reply(self._commentUser)
+            #self.comment.reply(self._commentUser)
 
         except (HTTPError, ConnectionError, Timeout, timeout) as err:
             print err
