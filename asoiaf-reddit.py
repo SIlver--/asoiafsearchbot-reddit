@@ -164,7 +164,6 @@ class Books(object):
                                 book = curBook)                    
             self._bookQuery += ")" # close the AND in the MSQL
         
-        print "----", self._bookQuery
     def build_query_sensitive(self):
         """
         Uses the correct mySql statement based off user's stated 
@@ -387,16 +386,17 @@ def main():
                 allBooks.watch_for_spoilers()
                 # Note: None needs to be explict as this evalutes to
                 # with Spoilers All as it's 0
-                if (allBooks.title != None and 
+                if allBooks.title != None:
+                    allBooks.which_book()  
                     # skips when SearchCOMMAND! is higher than (Spoiler Tag)
-                    allBooks.bookCommand.value <= allBooks.title.value
-                    ):
-
-                    allBooks.which_book()
-                    allBooks.parse_comment()
-                    allBooks.build_query_sensitive()
-                    allBooks.build_message()
-                    allBooks.reply()
+                    if (allBooks.bookCommand.value <= allBooks.title.value or
+                        allBooks.title.value == 0):
+                        allBooks.parse_comment()
+                        allBooks.build_query_sensitive()
+                        allBooks.build_message()
+                        allBooks.reply()
+                    else:
+                        allBooks.reply(spoiler=True)
                 else:
                     # Sends apporiate message if it's a spoiler
                     allBooks.reply(spoiler=True)
