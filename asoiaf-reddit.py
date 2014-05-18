@@ -70,52 +70,6 @@ class Title(Enum):
     AFFC = 4
     ADWD = 5
 
-<<<<<<< HEAD
-def parse_comment(comment, book):
-    """
-    Parses comment for what term to search for
-    Also decides if it's sensitive or insensitive
-    """
-    if comment.id not in commented:
-        search_term = ""
-        sensitive = False
-        # remove everything before SearchCommand!
-        # Allows quotations to be used before SearchCommand!
-        original_comment = comment.body
-
-        if (book == ALL):
-            original_comment = ''.join(original_comment.split('SearchAll!')[1:])
-        elif (book == AGOT):
-            original_comment = ''.join(original_comment.split('SearchAGOT!')[1:])
-        elif (book == ACOK):
-            original_comment = ''.join(original_comment.split('SearchACOK!')[1:])
-        elif (book == ASOS):
-            original_comment = ''.join(original_comment.split('SearchASOS!')[1:])
-        elif (book == AFFC):
-            original_comment = ''.join(original_comment.split('SearchAFFC!')[1:])
-        elif (book == ADWD):
-            original_comment = ''.join(original_comment.split('SearchADWD!')[1:])
-
-        # Only reply to threads with Spoiler All
-        # TODO: Expand to each book spoiler tag scope
-        if re.search("(\(|\[).*(published|(spoiler.*all)|(all.*spoiler)).*(\)|\])", comment.link_title.lower()):
-            # INSENSITIVE
-            search_brackets = re.search('"(.*?)"', original_comment)
-            if search_brackets:
-                search_term = search_brackets.group(0)
-                sensitive = False
-
-            # SENSITIVE
-            search_tri = re.search('\((.*?)\)', original_comment)
-            if search_tri:
-                search_term = search_tri.group(0)
-                sensitive = True
-
-            # Stop pesky searches like "a"
-            if len(search_term) > 3:
-                search_db(comment, search_term, sensitive, book)
-=======
->>>>>>> Develop-Class
 
 class Books(object):
     """
@@ -321,44 +275,6 @@ class Books(object):
             self._message += (
                 "| Series| Book| Chapter| Chapter Name| Chapter POV| Occurrence\n"
             )
-<<<<<<< HEAD
-            row_count += 1
-
-    search_database.close()
-    build_message(comment, list_occurrence, row_count, total, term, sensitive)
-
-
-
-def build_message(comment, occurrence, row_count, total, term, sensitive):
-    """
-    Sends message to user with the requested information
-    """
-
-    message = ""
-    comment_to_user = (
-        "######&#009;\n\n####&#009;\n\n#####&#009;\n\n"
-        "**SEARCH TERM ({caps}): {term}** \n\n "
-        "Total Occurrence: {occur} \n\n"
-        ">{message}"
-        "\n[Visualization of the search term]"
-        "(http://creative-co.de/labs/songicefire/?terms={term})"
-        "\n_____\n "
-        "^(I'm ASOIAFSearchBot, I will display the occurrence of your "
-        "search term throughout the books.)"
-        "^(Only currently working in Spoiler All topics.) "
-        "[^(More Info Here)]"
-        "(http://www.reddit.com/r/asoiaf/comments/25amke/"
-        "spoilers_all_introducing_asoiafsearchbot_command/)"
-    )
-
-    # Avoid spam, limit amount of rows
-    if row_count < 31 and total > 0:
-        message += (
-            "| Series| Book| Chapter| Chapter Name| Chapter POV| Occurrence\n"
-        )
-        message += "|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|\n".format(
-            dash='-' * 11
-=======
             self._message += "|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|\n".format(dash='-' * 11)
             # Each element added as a new row with new line
             for row in self._listOccurrence:
@@ -376,7 +292,6 @@ def build_message(comment, occurrence, row_count, total, term, sensitive):
             totalOccur = self._total,
             message = self._message,
             visual = visual
->>>>>>> Develop-Class
         )
         
         # used for caching
@@ -445,25 +360,6 @@ def build_message(comment, occurrence, row_count, total, term, sensitive):
                 self.bookCommand = member    
 
 
-<<<<<<< HEAD
-def reply(comment, full_reply):
-    """Replies to a comment with the text provided"""
-    try:
-        comment.reply(full_reply)
-	commented.append(comment.id)
-    except (HTTPError, ConnectionError, Timeout, timeout) as err:
-        print err
-    except RateLimitExceeded as err:
-        print err
-        time.sleep(10)
-    except APIException as err:  # Catch any less specific API errors
-        print err
-    else:
-        print full_reply
-        commented.append(comment.id)
-        
-=======
->>>>>>> Develop-Class
 
 # =============================================================================
 # MAIN
@@ -472,38 +368,6 @@ def reply(comment, full_reply):
 
 def main():
     """Main runner"""
-<<<<<<< HEAD
-    while True:
-        try:
-            print "start"
-            # Grab all new comments from /r/asoiaf
-            comment_count = 0
-            # Loop through each comment
-            for comment in praw.helpers.comment_stream(
-                reddit, 'asoiaf', limit=100, verbosity=0
-            ):
-                comment_count += 1
-                
-                if "SearchAll!" in comment.body:
-                    parse_comment(comment, ALL)
-                elif "SearchAGOT!" in comment.body:
-                    parse_comment(comment, AGOT)
-                elif "SearchACOK!" in comment.body:
-                    parse_comment(comment, ACOK)
-                elif "SearchASOS!" in comment.body:
-                    parse_comment(comment, ASOS)
-                elif "SearchAFFC!" in comment.body:
-                    parse_comment(comment, AFFC)
-                elif "SearchADWD!" in comment.body:
-                    parse_comment(comment, ADWD)
-
-                if comment_count == 100:
-                    break
-            print "sleeping"
-            time.sleep(25)
-        except Exception as err:
-            print err
-=======
     try:
         # Reddit Info
         user_agent = (
@@ -516,7 +380,6 @@ def main():
 
     except Exception as err:
         print err
->>>>>>> Develop-Class
 
     while True:
         #try:
@@ -554,8 +417,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-<<<<<<< HEAD
-=======
-
-
->>>>>>> Develop-Class
