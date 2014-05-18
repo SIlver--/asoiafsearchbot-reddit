@@ -142,19 +142,19 @@ class Books(object):
         # Makes sure if the command isn't SearchAll!
         # That the specific searches will instead be used
         # example SearchASOS!
-        if self.bookCommand != 'All':
+        if self.bookCommand.name != 'All':
             self._bookQuery = ('AND {col2} = "{book}"'
                 ).format(col2 = column2,
-                        book = self.bookCommand)
+                        book = self.bookCommand.name)
         # Starts from AGOT ends at what self.title is
         # Not needed for All(0) because the SQL does it by default         
-        elif self.title != 0:
+        elif self.title.value != 0:
             # First time requires AND, next are ORs
             self._bookQuery += ('AND ({col2} = "{book}" '
                 ).format(col2 = column2,
                         book = 'AGOT')
             # start the loop after AGOT
-            for x in range(2, self.title+1):
+            for x in range(2, self.title.value+1):
                 # assign current loop the name of the enum's value
                 curBook = Title(x).name
                 # Shouldn't add ORs if it's AGOT
@@ -163,7 +163,8 @@ class Books(object):
                         ).format(col2 = column2,
                                 book = curBook)                    
             self._bookQuery += ")" # close the AND in the MSQL
-
+        
+        print "----", self._bookQuery
     def build_query_sensitive(self):
         """
         Uses the correct mySql statement based off user's stated 
@@ -337,19 +338,19 @@ class Books(object):
         # loop formats each name into the regex
         # then checks regex against the title
         # number used for which_book() loop
-        for name, number in Title.__members__.items():
+        for name, member in Title.__members__.items():
             # Remove first letter incase of cases like GOT
             regex = ("(\(|\[).*({name}|{nameRemove}).*(\)|\])"
                 ).format(name = name.lower(), nameRemove = name[1:].lower())
             if re.search(regex, self.comment.link_title.lower()):
-                self.title = number.value
+                self.title = member
     
         # Decides which book the user picked based on the command.
         # SearchAGOT! to SearchADWD!
-        for name, number in Title.__members__.items():
+        for name, member in Title.__members__.items():
             search = ("Search{name}!").format(name = name)
             if search in self.comment.body:
-                self.bookCommand = name     
+                self.bookCommand = member    
 
 
 
@@ -404,3 +405,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
