@@ -220,23 +220,32 @@ class Books(object):
         # builds each row for the table
         for row in self._rowOccurrence:
             # Makes story lower when not sensitive
-            story = row[5]
+            quoteRegex = ("([A-Z][^.?!]*?)?(?<!\\w)(?i)("
+                        + self._searchTerm + 
+                        ")(?!\\w)[^.?!]*?[.?!]")
+                                    
             if self._sensitive == False:
                 story = row[5].lower()
+                quoteFound = re.search(quoteRegex, row[5], re.IGNORECASE)
+            else:
+                story = row[5]
+                quoteFound = re.search(quoteRegex, row[5])
             # Stores each found word as a list of strings
             # len used to count number of elements in the list
             storyLen = len(re.findall("(\W|^)" + self._searchTerm +
                                 "(\W|$)", story))
-                                
+
+            
             # Formats each row of the table nicely
             self._listOccurrence.append(
-                "| {series}| {book}| {number}| {chapter}| {pov}| {occur}".format(
+                "| {series}| {book}| {number}| {chapter}| {pov}| {occur}| {quote}".format(
                     series = row[0],
                     book = row[1],
                     number = row[2],
                     chapter = row[3],
                     pov = row[4],
-                    occur = storyLen
+                    occur = storyLen,
+                    quote = quoteFound.group(0)
                 )
             )
             self._total += storyLen
@@ -273,9 +282,9 @@ class Books(object):
         # Avoids spam and builds table heading only when condition is met
         if self._rowCount <= MAX_ROWS and self._total > 0:
             self._message += (
-                "| Series| Book| Chapter| Chapter Name| Chapter POV| Occurrence\n"
+                "| Series| Book| Chapter| Chapter Name| Chapter POV| Occurrence| Quote\n"
             )
-            self._message += "|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|\n".format(dash='-' * 11)
+            self._message += "|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|\n".format(dash='-' * 11)
             # Each element added as a new row with new line
             for row in self._listOccurrence:
                 self._message += row + "\n"
@@ -318,9 +327,9 @@ class Books(object):
                     "(http://www.reddit.com/r/asoiaf/comments/25amke/"
                     "spoilers_all_introducing_asoiafsearchbot_command/)"
                 )
-            if self.comment.id not in self.commented:
-                print self._commentUser
-                self.comment.reply(self._commentUser)
+            
+            print self._commentUser
+            #self.comment.reply(self._commentUser)
 
         except (HTTPError, ConnectionError, Timeout, timeout) as err:
             print err
@@ -381,10 +390,11 @@ def main():
     except Exception as err:
         print err
 
+    # Makes sure to keep going when an exception happens
     while True:
         try:
             comments = praw.helpers.comment_stream(
-                reddit, 'asoiaf', limit = 100, verbosity = 0)
+                reddit, 'asoiaftest', limit = 100, verbosity = 0)
             commentCount = 0
 
             for comment in comments:
@@ -395,16 +405,18 @@ def main():
                     # Note: None needs to be explict as this evalutes to
                     # with Spoilers All as it's 0
                     if allBooks.title != None:
-                        allBooks.which_book()  
-                        # skips when SearchCOMMAND! is higher than (Spoiler Tag)
-                        if (allBooks.bookCommand.value <= allBooks.title.value or
-                            allBooks.title.value == 0):
-                            allBooks.parse_comment()
-                            allBooks.build_query_sensitive()
-                            allBooks.build_message()
-                            allBooks.reply()
-                        else:
-                            allBooks.reply(spoiler=True)
+                        allBooks.which_book()
+                        # Don't respond to the comment a second time
+                        if allBooks.comment.id not in allBooks.commented:  
+                            # skips when SearchCOMMAND! is higher than (Spoiler Tag)
+                            if (allBooks.bookCommand.value <= allBooks.title.value or
+                                allBooks.title.value == 0):
+                                allBooks.parse_comment()
+                                allBooks.build_query_sensitive()
+                                allBooks.build_message()
+                                allBooks.reply()
+                            else:
+                                allBooks.reply(spoiler=True)
                     else:
                         # Sends apporiate message if it's a spoiler
                         allBooks.reply(spoiler=True)
@@ -421,5 +433,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-
