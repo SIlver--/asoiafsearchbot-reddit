@@ -226,8 +226,7 @@ class Books(object):
                 "######&#009;\n\n####&#009;\n\n#####&#009;\n\n"
                 "**SEARCH TERM ({caps}): {term}** \n\n "
                 "Total Occurrence: {totalOccur} \n\n"
-                "**THE FOLLOWING IS ONLY FOR {book} AND UNDER DUE TO THE SPOILER TAG IN THIS THREAD. "
-                "MAYHAPS YOU SHOULD TRY THE REQUEST IN ANOTHER THREAD IF YOU WANT MORE, heh.** \n\n"
+                "{warning}"
                 ">{message}"
                 "{visual}"
                 "\n_____\n^(I'm ASOIAFSearchBot, I will display the occurrence "
@@ -238,12 +237,17 @@ class Books(object):
             )
         # Don't show visual when no results
         visual = ""
+        warning = ""
         if self._total > 0:
             visual = (
                 "\n[Visualization of the search term. May contain unwanted spoilers.]"
                 "(http://creative-co.de/labs/songicefire/?terms={term})"
                 ).format(term = self._searchTerm)
-                
+        if self.title.name != ALL:
+            warning = ("**THE FOLLOWING IS ONLY FOR {book} AND UNDER DUE TO THE SPOILER TAG IN THIS THREAD. "
+                "MAYHAPS YOU SHOULD TRY THE REQUEST IN ANOTHER THREAD IF YOU WANT MORE, heh.** \n\n").format(
+                            book = self.title.name,
+            )
         # Avoids spam and builds table heading only when condition is met
         if self._rowCount <= MAX_ROWS and self._total > 0:
             self._message += (
@@ -261,7 +265,7 @@ class Books(object):
         caseSensitive = "CASE-SENSITIVE" if self._sensitive else "CASE-INSENSITIVE"    
         
         self._commentUser = commentUser.format(
-            book = self.title.name,
+            warning = warning,
             caps = caseSensitive,
             term = self._searchTerm,
             totalOccur = self._total,
@@ -295,7 +299,7 @@ class Books(object):
                 )
             
             print self._commentUser
-            #self.comment.reply(self._commentUser)
+            self.comment.reply(self._commentUser)
 
         except (HTTPError, ConnectionError, Timeout, timeout) as err:
             print err
@@ -360,7 +364,7 @@ def main():
     while True:
         try:
             comments = praw.helpers.comment_stream(
-                reddit, 'asoiaftest', limit = 100, verbosity = 0)
+                reddit, 'asoiaf', limit = 100, verbosity = 0)
             commentCount = 0
 
             for comment in comments:
