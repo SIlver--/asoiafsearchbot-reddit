@@ -85,13 +85,12 @@ class Books(object):
     # TODO: Make this functionality
     termHistory = {}
     termHistorySensitive = {}
-
-    bookContainer = None
     
     def __init__(self, comment):
         self.comment = comment
         self.bookCommand = None
         self.title = None
+        self._bookContainer = None
         self._searchTerm = ""
         self._bookQuery = ""
         self._sensitive = None
@@ -153,40 +152,60 @@ class Books(object):
         grabDB.execute(query)
 
         # Each row counts as a chapter
-        self.bookContainer = grabDB.fetchall()
+        self._bookContainer = grabDB.fetchall()
         grabDB.close()
 
-    def find_the_search_term(self):
+    def find_the_search_term(self,rowsTooLong=None):
         """
         Search through the books which chapter holds the search
-        term. Then count each use in said chapter.
+        term. Then count each use in said chapter. Recursion used
+        for when above 30. Makes it so only top 30 results are shown.
         """
+        # Sort from highest occurrence to lowest, only top 30
+        if rowsTooLong:
+            self._listOccurrence[:] = [] 
+            holdList = rowsTooLong
+            holdList = sorted(holdList, key=lambda tup: tup[6], reverse=True)
+        else:
+            # Allows the tuple to be changable
+            holdList = list(self._bookContainer)
 
-        for row in self.bookContainer:
-            # Makes story lower when not sensitive
-            story = row[5]
+        for i in range(len(holdList)):
+            story = holdList[i][5]
+
             if self._sensitive == False:
-                story = row[5].lower()
+                story = holdList[i][5].lower()
+            # checks if the word is in that chapter
             foundTerm = re.findall("(\W|^)" + self._searchTerm +
                     "(\W|$)", story)
+            # count the occurrence
+            storyLen = len(foundTerm)
+            holdList[i] += (storyLen,)
+
             if foundTerm:
                 # Stores each found word as a list of strings
-                # len used to count number of elements in the list
-                storyLen = len(foundTerm)
-                                    
-                # Formats each row of the table nicely
                 self._listOccurrence.append(
                     "| {series}| {book}| {number}| {chapter}| {pov}| {occur}".format(
-                        series = row[0],
-                        book = row[1],
-                        number = row[2],
-                        chapter = row[3],
-                        pov = row[4],
-                        occur = storyLen
+                        series = holdList[i][0],
+                        book = holdList[i][1],
+                        number = holdList[i][2],
+                        chapter = holdList[i][3],
+                        pov = holdList[i][4],
+                        occur = holdList[i][6],
                     )
                 )
-                self._total += storyLen
-                self._rowCount += 1
+                # keep the count during the recursion
+                if not rowsTooLong:
+                    self._total += storyLen
+                    self._rowCount += 1
+                # Ends the recursion loop
+                if i >= MAX_ROWS and rowsTooLong:
+                        break
+
+        # recursion to sort with top 30, checks at the end of loop
+        if self._rowCount >= MAX_ROWS and not rowsTooLong:
+            self.find_the_search_term(rowsTooLong=holdList)
+
 
     def which_book(self):
         """
@@ -226,6 +245,7 @@ class Books(object):
                 "######&#009;\n\n####&#009;\n\n#####&#009;\n\n"
                 "**SEARCH TERM ({caps}): {term}** \n\n "
                 "Total Occurrence: {totalOccur} \n\n"
+                "Total Chapters: {totalChapter} \n\n"
                 "{warning}"
                 ">{message}"
                 "{visual}"
@@ -243,13 +263,15 @@ class Books(object):
                 "\n[Visualization of the search term. May contain unwanted spoilers.]"
                 "(http://creative-co.de/labs/songicefire/?terms={term})"
                 ).format(term = self._searchTerm)
-        if self.title.name != ALL:
+        if self.title.name != 'All':
             warning = ("**THE FOLLOWING IS ONLY FOR {book} AND UNDER DUE TO THE SPOILER TAG IN THIS THREAD. "
                 "MAYHAPS YOU SHOULD TRY THE REQUEST IN ANOTHER THREAD IF YOU WANT MORE, heh.** \n\n").format(
                             book = self.title.name,
             )
+        if self._rowCount >= MAX_ROWS:
+            warning += ("Excess number of chapters. Sorted by highest to lowest, top 30 results only.\n\n")
         # Avoids spam and builds table heading only when condition is met
-        if self._rowCount <= MAX_ROWS and self._total > 0:
+        if self._total > 0:
             self._message += (
                 "| Series| Book| Chapter| Chapter Name| Chapter POV| Occurrence\n"
             )
@@ -257,8 +279,6 @@ class Books(object):
             # Each element added as a new row with new line
             for row in self._listOccurrence:
                 self._message += row + "\n"
-        elif self._rowCount > MAX_ROWS:
-                self._message = "**Excess number of chapters.**\n\n"
         elif self._total == 0:
                 self._message = "**Sorry no results.**\n\n"
                 
@@ -270,7 +290,8 @@ class Books(object):
             term = self._searchTerm,
             totalOccur = self._total,
             message = self._message,
-            visual = visual
+            visual = visual,
+            totalChapter = self._rowCount
         )
         
         # used for caching
@@ -299,7 +320,7 @@ class Books(object):
                 )
             
             print self._commentUser
-            self.comment.reply(self._commentUser)
+            #self.comment.reply(self._commentUser)
 
         except (HTTPError, ConnectionError, Timeout, timeout) as err:
             print err
@@ -364,7 +385,7 @@ def main():
     while True:
         try:
             comments = praw.helpers.comment_stream(
-                reddit, 'asoiaf', limit = 100, verbosity = 0)
+                reddit, 'asoiaftest', limit = 100, verbosity = 0)
             commentCount = 0
 
             for comment in comments:
