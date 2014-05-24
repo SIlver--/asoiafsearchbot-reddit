@@ -13,6 +13,7 @@ from requests.exceptions import HTTPError, ConnectionError, Timeout
 from socket import timeout
 import time
 from enum import Enum
+from nltk.tokenize import PunktSentenceTokenizer
 
 # =============================================================================
 # GLOBALS
@@ -31,6 +32,7 @@ column1 = config.get("SQL", "column1")
 column2 = config.get("SQL", "column2")
 
 MAX_ROWS = 30
+BOOK_CONTAINER = []
 
 # =============================================================================
 # CLASSES
@@ -83,7 +85,9 @@ class Books(object):
     # TODO: Make this functionality
     termHistory = {}
     termHistorySensitive = {}
-        
+
+    bookContainer = None
+    
     def __init__(self, comment):
         self.comment = comment
         self.bookCommand = None
@@ -105,7 +109,7 @@ class Books(object):
             ullam laoreet volutpat accumsan.
             SearchAll! "SEARCH TERM"
         into finally just:
-            Search Term
+            SEARCH TERM
         """
 
         # Removes everything before Search.!
@@ -131,26 +135,76 @@ class Books(object):
         # quotations at start and end
         self._searchTerm = self._searchTerm[1:-1]
         self._searchTerm = self._searchTerm.strip()
-        
-    def which_book(self):
+
+    def from_database_to_dict(self):
         """
-        self.title holds the farthest book in the series the 
-        SQL statement should go. So if the title is ASOS it will only 
-        do every occurence up to ASOS ONLY for SearchAll!
+        Transfers everything from the database to a tuple type
+        """
+        grabDB = Connect()
+        query = (
+            'SELECT * from {table} {bookQuery}'
+            'ORDER BY FIELD' 
+            '({col2}, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD")'
+            ).format(
+                table = table,
+                bookQuery = self._bookQuery,
+                col2 = column2)
+
+        grabDB.execute(query)
+
+        # Each row counts as a chapter
+        self.bookContainer = grabDB.fetchall()
+        grabDB.close()
+
+    def find_the_search_term(self):
+        """
+        Search through the books which chapter holds the search
+        term. Then count each use in said chapter.
         """
 
-        # Makes sure if the command isn't SearchAll!
-        # That the specific searches will instead be used
-        # example SearchASOS!
+        for row in self.bookContainer:
+            # Makes story lower when not sensitive
+            story = row[5]
+            if self._sensitive == False:
+                story = row[5].lower()
+            foundTerm = re.findall("(\W|^)" + self._searchTerm +
+                    "(\W|$)", story)
+            if foundTerm:
+                # Stores each found word as a list of strings
+                # len used to count number of elements in the list
+                storyLen = len(foundTerm)
+                                    
+                # Formats each row of the table nicely
+                self._listOccurrence.append(
+                    "| {series}| {book}| {number}| {chapter}| {pov}| {occur}".format(
+                        series = row[0],
+                        book = row[1],
+                        number = row[2],
+                        chapter = row[3],
+                        pov = row[4],
+                        occur = storyLen
+                    )
+                )
+                self._total += storyLen
+                self._rowCount += 1
+
+    def which_book(self):
+        """
+        self.title holds the farthest book in the series the
+        SQL statement should go. So if the title is ASOS it will only
+        do every occurence up to ASOS ONLY for SearchAll!
+        """
+        # When command is SearchAll! the specific searches 
+        # will instead be used. example SearchASOS!
         if self.bookCommand.name != 'All':
-            self._bookQuery = ('AND {col2} = "{book}"'
+            self._bookQuery = ('WHERE {col2} = "{book}"'
                 ).format(col2 = column2,
                         book = self.bookCommand.name)
         # Starts from AGOT ends at what self.title is
-        # Not needed for All(0) because the SQL does it by default         
+        # Not needed for All(0) because the SQL does it by default
         elif self.title.value != 0:
             # First time requires AND, next are ORs
-            self._bookQuery += ('AND ({col2} = "{book}" '
+            self._bookQuery += ('WHERE ({col2} = "{book}" '
                 ).format(col2 = column2,
                         book = 'AGOT')
             # start the loop after AGOT
@@ -158,92 +212,11 @@ class Books(object):
                 # assign current loop the name of the enum's value
                 curBook = Title(x).name
                 # Shouldn't add ORs if it's AGOT
-                if Title(x) != 1: 
+                if Title(x) != 1:
                     self._bookQuery += ('OR {col2} = "{book}" '
                         ).format(col2 = column2,
-                                book = curBook)                    
+                                book = curBook)
             self._bookQuery += ")" # close the AND in the MSQL
-        
-    def build_query_sensitive(self):
-        """
-        Uses the correct mySql statement based off user's stated 
-        case-sensitive
-        """
-
-        if self._sensitive:
-            mySqlSearch = (
-                'SELECT * FROM {table} WHERE {col1} REGEXP BINARY '
-                '"([[:blank:][:punct:]]|^){term}([[:punct:][:blank:]]|$)" '
-                '{bookQuery}ORDER BY FIELD'
-                '({col2}, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD"), 2'
-            )
-        else:
-            mySqlSearch = (
-                'SELECT * FROM {table} WHERE lower({col1}) REGEXP '
-                '"([[:blank:][:punct:]]|^){term}([[:punct:][:blank:]]|$)" '
-                '{bookQuery}ORDER BY FIELD'
-                '({col2}, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD"), 2'
-            )
-        
-        self.search_db(mySqlSearch)
-        
-    def search_db(self, mySqlSearch):
-        """
-        Search through the database for which chapter holds the search
-        term. Then count each use in said chapter.
-        """
-
-        searchDb = Connect()
-        """
-        print mySqlSearch.format(
-                table = table,
-                col1 = column1,
-                term = self._searchTerm,
-                col2 = column2,
-                bookQuery = self._bookQuery
-            )
-        """
-        # Find which chapter the word may appear
-        searchDb.execute(mySqlSearch.format(
-                table = table,
-                col1 = column1,
-                term = self._searchTerm,
-                col2 = column2,
-                bookQuery = self._bookQuery
-            )
-        )
-        
-        self._rowOccurrence = searchDb.fetchall()
-        storyLen = 0
-        # Once the chapter is found where the word appears
-        # loop will count occurence for each row
-        # builds each row for the table
-        for row in self._rowOccurrence:
-            # Makes story lower when not sensitive
-            story = row[5]
-            if self._sensitive == False:
-                story = row[5].lower()
-            # Stores each found word as a list of strings
-            # len used to count number of elements in the list
-            storyLen = len(re.findall("(\W|^)" + self._searchTerm +
-                                "(\W|$)", story))
-                                
-            # Formats each row of the table nicely
-            self._listOccurrence.append(
-                "| {series}| {book}| {number}| {chapter}| {pov}| {occur}".format(
-                    series = row[0],
-                    book = row[1],
-                    number = row[2],
-                    chapter = row[3],
-                    pov = row[4],
-                    occur = storyLen
-                )
-            )
-            self._total += storyLen
-            self._rowCount += 1
-        
-        searchDb.close()
-        
 
     def build_message(self):
         """
@@ -253,23 +226,28 @@ class Books(object):
                 "######&#009;\n\n####&#009;\n\n#####&#009;\n\n"
                 "**SEARCH TERM ({caps}): {term}** \n\n "
                 "Total Occurrence: {totalOccur} \n\n"
+                "{warning}"
                 ">{message}"
                 "{visual}"
                 "\n_____\n^(I'm ASOIAFSearchBot, I will display the occurrence "
-                "of your search term throughout the books. " 
-                "Only currently working in Spoiler All topics.) "
+                "of your search term throughout the books.) " 
                 "[^(More Info Here)]"
                 "(http://www.reddit.com/r/asoiaf/comments/25amke/"
                 "spoilers_all_introducing_asoiafsearchbot_command/)"
             )
         # Don't show visual when no results
         visual = ""
+        warning = ""
         if self._total > 0:
             visual = (
-                "\n[Visualization of the search term]"
+                "\n[Visualization of the search term. May contain unwanted spoilers.]"
                 "(http://creative-co.de/labs/songicefire/?terms={term})"
                 ).format(term = self._searchTerm)
-                
+        if self.title.name != ALL:
+            warning = ("**THE FOLLOWING IS ONLY FOR {book} AND UNDER DUE TO THE SPOILER TAG IN THIS THREAD. "
+                "MAYHAPS YOU SHOULD TRY THE REQUEST IN ANOTHER THREAD IF YOU WANT MORE, heh.** \n\n").format(
+                            book = self.title.name,
+            )
         # Avoids spam and builds table heading only when condition is met
         if self._rowCount <= MAX_ROWS and self._total > 0:
             self._message += (
@@ -287,6 +265,7 @@ class Books(object):
         caseSensitive = "CASE-SENSITIVE" if self._sensitive else "CASE-INSENSITIVE"    
         
         self._commentUser = commentUser.format(
+            warning = warning,
             caps = caseSensitive,
             term = self._searchTerm,
             totalOccur = self._total,
@@ -310,14 +289,15 @@ class Books(object):
             if spoiler:
                 self._commentUser = (
                     "######&#009;\n\n####&#009;\n\n#####&#009;\n\n"
-                    ">**Sorry, fulfilling this request would be a spoiler.**\n\n"
+                    ">**Sorry, fulfilling this request would be a spoiler due to the spoiler tag in this thread. "
+                    "Mayhaps try the request in another thread, heh.**\n\n"
                     "\n_____\n^(I'm ASOIAFSearchBot, I will display the occurrence "
-                    "of your search term throughout the books. " 
-                    "Only currently working in Spoiler All topics.) "
+                    "of your search term throughout the books.) " 
                     "[^(More Info Here)]"
                     "(http://www.reddit.com/r/asoiaf/comments/25amke/"
                     "spoilers_all_introducing_asoiafsearchbot_command/)"
                 )
+            
             print self._commentUser
             self.comment.reply(self._commentUser)
 
@@ -347,8 +327,7 @@ class Books(object):
             if re.search(regex, self.comment.link_title.lower()):
                 self.title = member
         # these books are not in Title Enum but follows the same guidelines
-        # TODO: Fix when new books are to the database
-        print self.comment.link_title
+        # TODO: Fix when new books are added to the database
         if re.search ("(\(|\[).*(published|twow|d&amp;e|d &amp; e"
             "|dunk.*egg|p\s?\&amp;\s?q).*(\)|\])", self.comment.link_title.lower()):
             self.title = Title.All
@@ -381,36 +360,46 @@ def main():
     except Exception as err:
         print err
 
+    # Makes sure to keep going when an exception happens
     while True:
-        #try:
-        commentCount = 0
-        comments = praw.helpers.comment_stream(
-            reddit, 'asoiaftest', limit = 100, verbosity = 0
-        )
-        
-        for comment in comments:
-            allBooks = Books(comment)
-            if re.search('Search(All|AGOT|ACOK|ASOS|AFFC|ADWD)!', comment.body):
-                allBooks.watch_for_spoilers()
-                # Note: None needs to be explict as this evalutes to
-                # with Spoilers All as it's 0
-                if allBooks.title != None:
-                    allBooks.which_book()  
-                    # skips when SearchCOMMAND! is higher than (Spoiler Tag)
-                    if (allBooks.bookCommand.value <= allBooks.title.value or
-                        allBooks.title.value == 0):
-                        allBooks.parse_comment()
-                        allBooks.build_query_sensitive()
-                        allBooks.build_message()
-                        allBooks.reply()
-                    else:
-                        allBooks.reply(spoiler=True)
-                else:
-                    # Sends apporiate message if it's a spoiler
-                    allBooks.reply(spoiler=True)
+        try:
+            comments = praw.helpers.comment_stream(
+                reddit, 'asoiaf', limit = 100, verbosity = 0)
+            commentCount = 0
 
-        #except Exception as err:
-            #print err
+            for comment in comments:
+                commentCount += 1
+                # Makes the instance attribute bookTuple
+                allBooks = Books(comment)
+                if re.search('Search(All|AGOT|ACOK|ASOS|AFFC|ADWD)!', comment.body):
+                    allBooks.watch_for_spoilers()
+                    # Note: None needs to be explict as this evalutes to
+                    # with Spoilers All as it's 0
+                    if allBooks.title != None:
+                        allBooks.which_book()
+                        # Build book tuple
+                        allBooks.from_database_to_dict()
+                        # Don't respond to the comment a second time
+                        if allBooks.comment.id not in allBooks.commented:  
+                            # skips when SearchCOMMAND! is higher than (Spoiler Tag)
+                            if (allBooks.bookCommand.value <= allBooks.title.value or
+                                allBooks.title.value == 0):
+                                allBooks.parse_comment()
+                                allBooks.find_the_search_term()
+                                allBooks.build_message()
+                                allBooks.reply()
+                            elif allBooks.comment.id not in allBooks.commented:
+                                allBooks.reply(spoiler=True)
+                    elif allBooks.comment.id not in allBooks.commented:
+                        # Sends apporiate message if it's a spoiler
+                        allBooks.reply(spoiler=True)
+                if commentCount == 100:
+                    break
+
+            print "sleeping"
+            time.sleep(25)
+        except Exception as err:
+            print err
 # =============================================================================
 # RUNNER
 # =============================================================================
