@@ -109,7 +109,7 @@ class Books(object):
             ullam laoreet volutpat accumsan.
             SearchAll! "SEARCH TERM"
         into finally just:
-            Search Term
+            SEARCH TERM
         """
 
         # Removes everything before Search.!
@@ -226,7 +226,8 @@ class Books(object):
                 "######&#009;\n\n####&#009;\n\n#####&#009;\n\n"
                 "**SEARCH TERM ({caps}): {term}** \n\n "
                 "Total Occurrence: {totalOccur} \n\n"
-                "**The following is for {book} and under.** \n\n"
+                "**THE FOLLOWING IS ONLY FOR {book} AND UNDER DUE TO THE SPOILER TAG IN THIS THREAD. "
+                "MAYHAPS YOU SHOULD TRY THE REQUEST IN ANOTHER THREAD IF YOU WANT MORE, heh.** \n\n"
                 ">{message}"
                 "{visual}"
                 "\n_____\n^(I'm ASOIAFSearchBot, I will display the occurrence "
@@ -284,7 +285,8 @@ class Books(object):
             if spoiler:
                 self._commentUser = (
                     "######&#009;\n\n####&#009;\n\n#####&#009;\n\n"
-                    ">**Sorry, fulfilling this request would be a spoiler.**\n\n"
+                    ">**Sorry, fulfilling this request would be a spoiler due to the spoiler tag in this thread. "
+                    "Mayhaps try the request in another thread, heh.**\n\n"
                     "\n_____\n^(I'm ASOIAFSearchBot, I will display the occurrence "
                     "of your search term throughout the books.) " 
                     "[^(More Info Here)]"
