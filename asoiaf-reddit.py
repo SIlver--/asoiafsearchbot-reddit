@@ -33,22 +33,6 @@ column2 = config.get("SQL", "column2")
 
 MAX_ROWS = 30
 BOOK_CONTAINER = []
-# =============================================================================
-# PUBLIC FUNCTIONS
-# =============================================================================
-
-def from_database_to_dict():
-    """
-    Transfers everything from the database to a tuple type
-    """
-    global BOOK_CONTAINER
-    grabDB = Connect()
-    query = 'SELECT * from books ORDER BY FIELD(book, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD")'
-    grabDB.execute(query)
-
-    # Each row counts as a chapter
-    BOOK_CONTAINER = grabDB.fetchall()
-    grabDB.close()
 
 # =============================================================================
 # CLASSES
@@ -101,6 +85,8 @@ class Books(object):
     # TODO: Make this functionality
     termHistory = {}
     termHistorySensitive = {}
+
+    bookContainer = None
     
     def __init__(self, comment):
         self.comment = comment
@@ -150,13 +136,33 @@ class Books(object):
         self._searchTerm = self._searchTerm[1:-1]
         self._searchTerm = self._searchTerm.strip()
 
+    def from_database_to_dict(self):
+        """
+        Transfers everything from the database to a tuple type
+        """
+        grabDB = Connect()
+        query = (
+            'SELECT * from {table} {bookQuery}'
+            'ORDER BY FIELD' 
+            '({col2}, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD")'
+            ).format(
+                table = table,
+                bookQuery = self._bookQuery,
+                col2 = column2)
+
+        grabDB.execute(query)
+
+        # Each row counts as a chapter
+        self.bookContainer = grabDB.fetchall()
+        grabDB.close()
+
     def find_the_search_term(self):
         """
         Search through the books which chapter holds the search
         term. Then count each use in said chapter.
         """
 
-        for row in BOOK_CONTAINER:
+        for row in self.bookContainer:
             # Makes story lower when not sensitive
             story = row[5]
             if self._sensitive == False:
@@ -184,23 +190,21 @@ class Books(object):
 
     def which_book(self):
         """
-        self.title holds the farthest book in the series the 
-        SQL statement should go. So if the title is ASOS it will only 
+        self.title holds the farthest book in the series the
+        SQL statement should go. So if the title is ASOS it will only
         do every occurence up to ASOS ONLY for SearchAll!
         """
-
-        # Makes sure if the command isn't SearchAll!
-        # That the specific searches will instead be used
-        # example SearchASOS!
+        # When command is SearchAll! the specific searches 
+        # will instead be used. example SearchASOS!
         if self.bookCommand.name != 'All':
-            self._bookQuery = ('AND {col2} = "{book}"'
+            self._bookQuery = ('WHERE {col2} = "{book}"'
                 ).format(col2 = column2,
                         book = self.bookCommand.name)
         # Starts from AGOT ends at what self.title is
-        # Not needed for All(0) because the SQL does it by default         
+        # Not needed for All(0) because the SQL does it by default
         elif self.title.value != 0:
             # First time requires AND, next are ORs
-            self._bookQuery += ('AND ({col2} = "{book}" '
+            self._bookQuery += ('WHERE ({col2} = "{book}" '
                 ).format(col2 = column2,
                         book = 'AGOT')
             # start the loop after AGOT
@@ -208,10 +212,10 @@ class Books(object):
                 # assign current loop the name of the enum's value
                 curBook = Title(x).name
                 # Shouldn't add ORs if it's AGOT
-                if Title(x) != 1: 
+                if Title(x) != 1:
                     self._bookQuery += ('OR {col2} = "{book}" '
                         ).format(col2 = column2,
-                                book = curBook)                    
+                                book = curBook)
             self._bookQuery += ")" # close the AND in the MSQL
 
     def build_message(self):
@@ -354,10 +358,9 @@ def main():
     while True:
         try:
             comments = praw.helpers.comment_stream(
-                reddit, 'asoiaf', limit = 100, verbosity = 0)
+                reddit, 'asoiaftest', limit = 100, verbosity = 0)
             commentCount = 0
-            # Build book tuple
-            from_database_to_dict()
+
             for comment in comments:
                 commentCount += 1
                 # Makes the instance attribute bookTuple
@@ -368,6 +371,8 @@ def main():
                     # with Spoilers All as it's 0
                     if allBooks.title != None:
                         allBooks.which_book()
+                        # Build book tuple
+                        allBooks.from_database_to_dict()
                         # Don't respond to the comment a second time
                         if allBooks.comment.id not in allBooks.commented:  
                             # skips when SearchCOMMAND! is higher than (Spoiler Tag)
@@ -377,9 +382,9 @@ def main():
                                 allBooks.find_the_search_term()
                                 allBooks.build_message()
                                 allBooks.reply()
-                            else:
+                            elif allBooks.comment.id not in allBooks.commented:
                                 allBooks.reply(spoiler=True)
-                    else:
+                    elif allBooks.comment.id not in allBooks.commented:
                         # Sends apporiate message if it's a spoiler
                         allBooks.reply(spoiler=True)
                 if commentCount == 100:
