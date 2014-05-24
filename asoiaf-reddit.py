@@ -13,6 +13,7 @@ from requests.exceptions import HTTPError, ConnectionError, Timeout
 from socket import timeout
 import time
 from enum import Enum
+from nltk.tokenize import PunktSentenceTokenizer
 
 # =============================================================================
 # GLOBALS
@@ -31,6 +32,23 @@ column1 = config.get("SQL", "column1")
 column2 = config.get("SQL", "column2")
 
 MAX_ROWS = 30
+BOOK_CONTAINER = []
+# =============================================================================
+# PUBLIC FUNCTIONS
+# =============================================================================
+
+def from_database_to_dict():
+    """
+    Transfers everything from the database to a tuple type
+    """
+    global BOOK_CONTAINER
+    grabDB = Connect()
+    query = 'SELECT * from books ORDER BY FIELD(book, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD")'
+    grabDB.execute(query)
+
+    # Each row counts as a chapter
+    BOOK_CONTAINER = grabDB.fetchall()
+    grabDB.close()
 
 # =============================================================================
 # CLASSES
@@ -83,7 +101,7 @@ class Books(object):
     # TODO: Make this functionality
     termHistory = {}
     termHistorySensitive = {}
-        
+    
     def __init__(self, comment):
         self.comment = comment
         self.bookCommand = None
@@ -131,7 +149,39 @@ class Books(object):
         # quotations at start and end
         self._searchTerm = self._searchTerm[1:-1]
         self._searchTerm = self._searchTerm.strip()
-        
+
+    def find_the_search_term(self):
+        """
+        Search through the books which chapter holds the search
+        term. Then count each use in said chapter.
+        """
+
+        for row in BOOK_CONTAINER:
+            # Makes story lower when not sensitive
+            story = row[5]
+            if self._sensitive == False:
+                story = row[5].lower()
+            foundTerm = re.findall("(\W|^)" + self._searchTerm +
+                    "(\W|$)", story)
+            if foundTerm:
+                # Stores each found word as a list of strings
+                # len used to count number of elements in the list
+                storyLen = len(foundTerm)
+                                    
+                # Formats each row of the table nicely
+                self._listOccurrence.append(
+                    "| {series}| {book}| {number}| {chapter}| {pov}| {occur}".format(
+                        series = row[0],
+                        book = row[1],
+                        number = row[2],
+                        chapter = row[3],
+                        pov = row[4],
+                        occur = storyLen
+                    )
+                )
+                self._total += storyLen
+                self._rowCount += 1
+
     def which_book(self):
         """
         self.title holds the farthest book in the series the 
@@ -163,96 +213,6 @@ class Books(object):
                         ).format(col2 = column2,
                                 book = curBook)                    
             self._bookQuery += ")" # close the AND in the MSQL
-        
-    def build_query_sensitive(self):
-        """
-        Uses the correct mySql statement based off user's stated 
-        case-sensitive
-        """
-
-        if self._sensitive:
-            mySqlSearch = (
-                'SELECT * FROM {table} WHERE {col1} REGEXP BINARY '
-                '"([[:blank:][:punct:]]|^){term}([[:punct:][:blank:]]|$)" '
-                '{bookQuery}ORDER BY FIELD'
-                '({col2}, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD"), 2'
-            )
-        else:
-            mySqlSearch = (
-                'SELECT * FROM {table} WHERE lower({col1}) REGEXP '
-                '"([[:blank:][:punct:]]|^){term}([[:punct:][:blank:]]|$)" '
-                '{bookQuery}ORDER BY FIELD'
-                '({col2}, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD"), 2'
-            )
-        
-        self.search_db(mySqlSearch)
-        
-    def search_db(self, mySqlSearch):
-        """
-        Search through the database for which chapter holds the search
-        term. Then count each use in said chapter.
-        """
-
-        searchDb = Connect()
-        """
-        print mySqlSearch.format(
-                table = table,
-                col1 = column1,
-                term = self._searchTerm,
-                col2 = column2,
-                bookQuery = self._bookQuery
-            )
-        """
-        # Find which chapter the word may appear
-        searchDb.execute(mySqlSearch.format(
-                table = table,
-                col1 = column1,
-                term = self._searchTerm,
-                col2 = column2,
-                bookQuery = self._bookQuery
-            )
-        )
-        
-        self._rowOccurrence = searchDb.fetchall()
-        storyLen = 0
-        # Once the chapter is found where the word appears
-        # loop will count occurence for each row
-        # builds each row for the table
-        for row in self._rowOccurrence:
-            # Makes story lower when not sensitive
-            quoteRegex = ("([A-Z][^.?!]*?)?(?<!\\w)(?i)("
-                        + self._searchTerm + 
-                        ")(?!\\w)[^.?!]*?[.?!]")
-                                    
-            if self._sensitive == False:
-                story = row[5].lower()
-                quoteFound = re.search(quoteRegex, row[5], re.IGNORECASE)
-            else:
-                story = row[5]
-                quoteFound = re.search(quoteRegex, row[5])
-            # Stores each found word as a list of strings
-            # len used to count number of elements in the list
-            storyLen = len(re.findall("(\W|^)" + self._searchTerm +
-                                "(\W|$)", story))
-
-            
-            # Formats each row of the table nicely
-            self._listOccurrence.append(
-                "| {series}| {book}| {number}| {chapter}| {pov}| {occur}| {quote}".format(
-                    series = row[0],
-                    book = row[1],
-                    number = row[2],
-                    chapter = row[3],
-                    pov = row[4],
-                    occur = storyLen,
-                    quote = quoteFound.group(0)
-                )
-            )
-            self._total += storyLen
-            self._rowCount += 1
-        
-        searchDb.close()
-        
 
     def build_message(self):
         """
@@ -282,9 +242,9 @@ class Books(object):
         # Avoids spam and builds table heading only when condition is met
         if self._rowCount <= MAX_ROWS and self._total > 0:
             self._message += (
-                "| Series| Book| Chapter| Chapter Name| Chapter POV| Occurrence| Quote\n"
+                "| Series| Book| Chapter| Chapter Name| Chapter POV| Occurrence\n"
             )
-            self._message += "|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|\n".format(dash='-' * 11)
+            self._message += "|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|\n".format(dash='-' * 11)
             # Each element added as a new row with new line
             for row in self._listOccurrence:
                 self._message += row + "\n"
@@ -394,11 +354,13 @@ def main():
     while True:
         try:
             comments = praw.helpers.comment_stream(
-                reddit, 'asoiaftest', limit = 100, verbosity = 0)
+                reddit, 'asoiaf', limit = 100, verbosity = 0)
             commentCount = 0
-
+            # Build book tuple
+            from_database_to_dict()
             for comment in comments:
                 commentCount += 1
+                # Makes the instance attribute bookTuple
                 allBooks = Books(comment)
                 if re.search('Search(All|AGOT|ACOK|ASOS|AFFC|ADWD)!', comment.body):
                     allBooks.watch_for_spoilers()
@@ -412,7 +374,7 @@ def main():
                             if (allBooks.bookCommand.value <= allBooks.title.value or
                                 allBooks.title.value == 0):
                                 allBooks.parse_comment()
-                                allBooks.build_query_sensitive()
+                                allBooks.find_the_search_term()
                                 allBooks.build_message()
                                 allBooks.reply()
                             else:
