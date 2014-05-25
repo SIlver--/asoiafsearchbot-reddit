@@ -1,4 +1,4 @@
-#!/usr/bin/env python -O
+#!/usr/bin/env python2.7
 
 # =============================================================================
 # IMPORTS
@@ -13,7 +13,7 @@ from requests.exceptions import HTTPError, ConnectionError, Timeout
 from socket import timeout
 import time
 from enum import Enum
-from nltk.tokenize import PunktSentenceTokenizer
+import nltk
 
 # =============================================================================
 # GLOBALS
@@ -33,6 +33,7 @@ column2 = config.get("SQL", "column2")
 
 MAX_ROWS = 30
 BOOK_CONTAINER = []
+sent_tokenize = nltk.data.load('tokenizers/punkt/english.pickle')
 
 # =============================================================================
 # CLASSES
@@ -122,7 +123,7 @@ class Books(object):
         if search_brackets:
             self._searchTerm = search_brackets.group(0)
             self._sensitive = False
-            self._searchTerm = self._searchTerm.lower()
+
         
 
         # SENSITIVE
@@ -171,33 +172,34 @@ class Books(object):
             holdList = list(self._bookContainer)
 
         for i in range(len(holdList)):
-            story = holdList[i][5]
-
-            if self._sensitive == False:
-                story = holdList[i][5].lower()
             # checks if the word is in that chapter
-            foundTerm = re.findall("(\W|^)" + self._searchTerm +
-                    "(\W|$)", story)
+            foundTerm = re.findall("(\W|^)" + self._searchTerm.lower() +
+                    "(\W|$)", holdList[i][5].lower())
             # count the occurrence
             storyLen = len(foundTerm)
             holdList[i] += (storyLen,)
 
+
             if foundTerm:
+                # keep the count during the recursion
+                if not rowsTooLong:
+                    self._total += storyLen
+                    self._rowCount += 1
+                    # adds to the end of holdList[i], it now exists during the recursion
+                    holdList[i] += (self.sentences_to_quote(holdList[i][5]), )
                 # Stores each found word as a list of strings
                 self._listOccurrence.append(
-                    "| {series}| {book}| {number}| {chapter}| {pov}| {occur}".format(
+                    "| {series}| {book}| {number}| {chapter}| {pov}| {occur}| {quote}".format(
                         series = holdList[i][0],
                         book = holdList[i][1],
                         number = holdList[i][2],
                         chapter = holdList[i][3],
                         pov = holdList[i][4],
                         occur = holdList[i][6],
+                        quote = holdList[i][7]
                     )
                 )
-                # keep the count during the recursion
-                if not rowsTooLong:
-                    self._total += storyLen
-                    self._rowCount += 1
+
                 # Ends the recursion loop
                 if i >= MAX_ROWS and rowsTooLong:
                         break
@@ -205,6 +207,24 @@ class Books(object):
         # recursion to sort with top 30, checks at the end of loop
         if self._rowCount >= MAX_ROWS and not rowsTooLong:
             self.find_the_search_term(rowsTooLong=holdList)
+
+    def sentences_to_quote(self, chapter):
+        """
+        Seperates the chapter into sentences
+        Returns the first occurrence of the word in the sentence
+        """
+
+        # Seperate the chapters into sentences
+        searchSentences = sent_tokenize.tokenize(chapter, realign_boundaries=True)
+
+        for word in searchSentences:
+            regex = (re.sub("(\W|^)" + self._searchTerm + "(\W|$)",  
+                " **" + self._searchTerm + "** ", 
+                word, flags=re.IGNORECASE))
+            if regex != word:
+                return regex
+        
+
 
 
     def which_book(self):
@@ -273,9 +293,9 @@ class Books(object):
         # Avoids spam and builds table heading only when condition is met
         if self._total > 0:
             self._message += (
-                "| Series| Book| Chapter| Chapter Name| Chapter POV| Occurrence\n"
+                "| Series| Book| Chapter| Chapter Name| Chapter POV| Occurrence| Quote^(First Occurrence Only)\n"
             )
-            self._message += "|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|\n".format(dash='-' * 11)
+            self._message += "|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|\n".format(dash='-' * 11)
             # Each element added as a new row with new line
             for row in self._listOccurrence:
                 self._message += row + "\n"
@@ -383,6 +403,7 @@ def main():
 
     # Makes sure to keep going when an exception happens
     while True:
+        print "start"
         try:
             comments = praw.helpers.comment_stream(
                 reddit, 'asoiaftest', limit = 100, verbosity = 0)
@@ -427,3 +448,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
