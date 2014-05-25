@@ -1,4 +1,4 @@
-#!/usr/bin/env python -O
+#!/usr/bin/env python2.7
 
 # =============================================================================
 # IMPORTS
@@ -11,9 +11,9 @@ from praw.errors import APIException, RateLimitExceeded
 import re
 from requests.exceptions import HTTPError, ConnectionError, Timeout
 from socket import timeout
-import time
+from time import gmtime, strftime
 from enum import Enum
-from nltk.tokenize import PunktSentenceTokenizer
+import nltk
 
 # =============================================================================
 # GLOBALS
@@ -33,6 +33,7 @@ column2 = config.get("SQL", "column2")
 
 MAX_ROWS = 30
 BOOK_CONTAINER = []
+sent_tokenize = nltk.data.load('tokenizers/punkt/english.pickle')
 
 # =============================================================================
 # CLASSES
@@ -85,13 +86,12 @@ class Books(object):
     # TODO: Make this functionality
     termHistory = {}
     termHistorySensitive = {}
-
-    bookContainer = None
     
     def __init__(self, comment):
         self.comment = comment
         self.bookCommand = None
         self.title = None
+        self._bookContainer = None
         self._searchTerm = ""
         self._bookQuery = ""
         self._sensitive = None
@@ -112,29 +112,25 @@ class Books(object):
             SEARCH TERM
         """
 
-        # Removes everything before Search.!
+        # Removes everything before and including Search.!
         self._searchTerm = ''.join(re.split(
                                 r'Search(All|AGOT|ACOK|ASOS|AFFC|ADWD)!', 
                                 self.comment.body)[2:]
                             )
 
-        # INSENSITIVE
+        # Kept for legacy reasons
         search_brackets = re.search('"(.*?)"', self._searchTerm)
         if search_brackets:
             self._searchTerm = search_brackets.group(0)
-            self._sensitive = False
-            self._searchTerm = self._searchTerm.lower()
-        
-
-        # SENSITIVE
         search_tri = re.search('\((.*?)\)', self._searchTerm)
         if search_tri:
             self._searchTerm = search_tri.group(0)
-            self._sensitive = True
         
         # quotations at start and end
-        self._searchTerm = self._searchTerm[1:-1]
-        self._searchTerm = self._searchTerm.strip()
+        # fringes cases for when people don't do it right
+        if search_brackets or search_tri:
+            self._searchTerm = self._searchTerm[1:-1]
+            self._searchTerm = self._searchTerm.strip()
 
     def from_database_to_dict(self):
         """
@@ -142,52 +138,89 @@ class Books(object):
         """
         grabDB = Connect()
         query = (
-            'SELECT * from {table} {bookQuery}'
+            'SELECT * from {table} WHERE MATCH({col1})' 
+            'AGAINST(\'"{term}"\' IN BOOLEAN MODE) {bookQuery}'
             'ORDER BY FIELD' 
             '({col2}, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD")'
             ).format(
                 table = table,
+                term = self._searchTerm,
                 bookQuery = self._bookQuery,
+                col1 = column1,
                 col2 = column2)
-
         grabDB.execute(query)
 
         # Each row counts as a chapter
-        self.bookContainer = grabDB.fetchall()
+        self._bookContainer = grabDB.fetchall()
         grabDB.close()
 
-    def find_the_search_term(self):
+    def find_the_search_term(self,rowsTooLong=None):
         """
         Search through the books which chapter holds the search
-        term. Then count each use in said chapter.
+        term. Then count each use in said chapter. Recursion used
+        for when above 30. Makes it so only top 30 results are shown.
         """
+        # Sort from highest occurrence to lowest, only top 30
+        if rowsTooLong:
+            self._listOccurrence[:] = [] 
+            holdList = rowsTooLong
+            holdList = sorted(holdList, key=lambda tup: tup[6], reverse=True)
+        else:
+            # Allows the tuple to be changable
+            holdList = list(self._bookContainer)
+        for i in range(len(holdList)):
+            # checks if the word is in that chapter
+            foundTerm = re.findall(r"\b" + self._searchTerm +
+                r"\b", holdList[i][5], flags=re.IGNORECASE)
+            # count the occurrence
+            storyLen = len(foundTerm)
+            holdList[i] += (storyLen,)
 
-        for row in self.bookContainer:
-            # Makes story lower when not sensitive
-            story = row[5]
-            if self._sensitive == False:
-                story = row[5].lower()
-            foundTerm = re.findall("(\W|^)" + self._searchTerm +
-                    "(\W|$)", story)
+
             if foundTerm:
+                # keep the count during the recursion
+                if not rowsTooLong:
+                    self._total += storyLen
+                    self._rowCount += 1
+                    # adds to the end of holdList[i], it now exists during the recursion
+                    holdList[i] += (self.sentences_to_quote(holdList[i][5]), )
                 # Stores each found word as a list of strings
-                # len used to count number of elements in the list
-                storyLen = len(foundTerm)
-                                    
-                # Formats each row of the table nicely
                 self._listOccurrence.append(
-                    "| {series}| {book}| {number}| {chapter}| {pov}| {occur}".format(
-                        series = row[0],
-                        book = row[1],
-                        number = row[2],
-                        chapter = row[3],
-                        pov = row[4],
-                        occur = storyLen
+                    "| {series}| {book}| {number}| {chapter}| {pov}| {occur}| {quote}".format(
+                        series = holdList[i][0],
+                        book = holdList[i][1],
+                        number = holdList[i][2],
+                        chapter = holdList[i][3],
+                        pov = holdList[i][4],
+                        occur = holdList[i][6],
+                        quote = holdList[i][7]
                     )
                 )
-                self._total += storyLen
-                self._rowCount += 1
 
+                # Ends the recursion loop
+                if i >= MAX_ROWS and rowsTooLong:
+                        break
+
+        # recursion to sort with top 30, checks at the end of loop
+        if self._rowCount >= MAX_ROWS and not rowsTooLong:
+            self.find_the_search_term(rowsTooLong=holdList)
+
+    def sentences_to_quote(self, chapter):
+        """
+        Seperates the chapter into sentences
+        Returns the first occurrence of the word in the sentence
+        """
+
+        # Seperate the chapters into sentences
+        searchSentences = sent_tokenize.tokenize(chapter, realign_boundaries=True)
+        findIt = r"\b" + self._searchTerm + r"\b"
+        for word in searchSentences:
+            regex = (re.sub(findIt,  
+                "**" + self._searchTerm.upper() + "**", 
+                word, flags=re.IGNORECASE))
+            if regex != word:
+                return regex
+        
     def which_book(self):
         """
         self.title holds the farthest book in the series the
@@ -197,14 +230,14 @@ class Books(object):
         # When command is SearchAll! the specific searches 
         # will instead be used. example SearchASOS!
         if self.bookCommand.name != 'All':
-            self._bookQuery = ('WHERE {col2} = "{book}"'
+            self._bookQuery = ('AND {col2} = "{book}"'
                 ).format(col2 = column2,
                         book = self.bookCommand.name)
         # Starts from AGOT ends at what self.title is
         # Not needed for All(0) because the SQL does it by default
         elif self.title.value != 0:
             # First time requires AND, next are ORs
-            self._bookQuery += ('WHERE ({col2} = "{book}" '
+            self._bookQuery += ('AND ({col2} = "{book}" '
                 ).format(col2 = column2,
                         book = 'AGOT')
             # start the loop after AGOT
@@ -223,63 +256,52 @@ class Books(object):
         Build message that will be sent to the reddit user
         """
         commentUser = (
-                "######&#009;\n\n####&#009;\n\n#####&#009;\n\n"
-                "**SEARCH TERM ({caps}): {term}** \n\n "
+                "**SEARCH TERM: {term}** \n\n "
                 "Total Occurrence: {totalOccur} \n\n"
+                "Total Chapters: {totalChapter} \n\n"
                 "{warning}"
                 ">{message}"
-                "{visual}"
-                "\n_____\n^(I'm ASOIAFSearchBot, I will display the occurrence "
-                "of your search term throughout the books.) " 
-                "[^(More Info Here)]"
+                "\n_____\n" 
+                "[^([More Info Here])]"
                 "(http://www.reddit.com/r/asoiaf/comments/25amke/"
-                "spoilers_all_introducing_asoiafsearchbot_command/)"
+                "spoilers_all_introducing_asoiafsearchbot_command/) | "
+                "[^([Practice Thread])]"
+                "(http://www.reddit.com/r/asoiaf/comments/26ez9u/"
+                "spoilers_all_asoiafsearchbot_practice_thread/) | "
+                "[^([Suggestions])]"
+                "(http://www.reddit.com/message/compose/?to=RemindMeBotWrangler&subject=Suggestion) | "
+                "[^([Code])]"
+                "(https://github.com/SIlver--/asoiafsearchbot-reddit)"
+
             )
-        # Don't show visual when no results
-        visual = ""
         warning = ""
-        if self._total > 0:
-            visual = (
-                "\n[Visualization of the search term. May contain unwanted spoilers.]"
-                "(http://creative-co.de/labs/songicefire/?terms={term})"
-                ).format(term = self._searchTerm)
-        if self.title.name != ALL:
-            warning = ("**THE FOLLOWING IS ONLY FOR {book} AND UNDER DUE TO THE SPOILER TAG IN THIS THREAD. "
-                "MAYHAPS YOU SHOULD TRY THE REQUEST IN ANOTHER THREAD IF YOU WANT MORE, heh.** \n\n").format(
+        if self.title.name != 'All':
+            warning = ("**ONLY** for **{book}** and under due to the spoiler tag in the title. " 
+                "Try the practice thread to reduce spam and keep the thread on topic.\n\n").format(
                             book = self.title.name,
             )
+        if self._rowCount >= MAX_ROWS:
+            warning += ("Excess number of chapters. Sorted by highest to lowest, top 30 results only.\n\n")
         # Avoids spam and builds table heading only when condition is met
-        if self._rowCount <= MAX_ROWS and self._total > 0:
+        if self._total > 0:
             self._message += (
-                "| Series| Book| Chapter| Chapter Name| Chapter POV| Occurrence\n"
+                "| Series| Book| Chapter| Chapter Name| Chapter POV| Occurrence| Quote^(First Occurrence Only)\n"
             )
-            self._message += "|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|\n".format(dash='-' * 11)
+            self._message += "|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|\n".format(dash='-' * 11)
             # Each element added as a new row with new line
             for row in self._listOccurrence:
                 self._message += row + "\n"
-        elif self._rowCount > MAX_ROWS:
-                self._message = "**Excess number of chapters.**\n\n"
         elif self._total == 0:
                 self._message = "**Sorry no results.**\n\n"
                 
-        caseSensitive = "CASE-SENSITIVE" if self._sensitive else "CASE-INSENSITIVE"    
-        
         self._commentUser = commentUser.format(
             warning = warning,
-            caps = caseSensitive,
             term = self._searchTerm,
             totalOccur = self._total,
             message = self._message,
-            visual = visual
+            totalChapter = self._rowCount
         )
         
-        # used for caching
-        if self._sensitive:
-            self.termHistorySensitive[self._searchTerm] = self._message
-        else:
-            self.termHistory[self._searchTerm] = self._message
-            
-            
     def reply(self, spoiler=False):
         """
         Reply to reddit user. If the search would be a spoiler
@@ -288,18 +310,24 @@ class Books(object):
         try:
             if spoiler:
                 self._commentUser = (
-                    "######&#009;\n\n####&#009;\n\n#####&#009;\n\n"
                     ">**Sorry, fulfilling this request would be a spoiler due to the spoiler tag in this thread. "
                     "Mayhaps try the request in another thread, heh.**\n\n"
-                    "\n_____\n^(I'm ASOIAFSearchBot, I will display the occurrence "
-                    "of your search term throughout the books.) " 
-                    "[^(More Info Here)]"
+                    "\n_____\n" 
+                    "[^([More Info Here])]"
                     "(http://www.reddit.com/r/asoiaf/comments/25amke/"
-                    "spoilers_all_introducing_asoiafsearchbot_command/)"
+                    "spoilers_all_introducing_asoiafsearchbot_command/) | "
+                    "[^([Practice Thread])]"
+                    "(http://www.reddit.com/r/asoiaf/comments/26ez9u/"
+                    "spoilers_all_asoiafsearchbot_practice_thread/) | "
+                    "[^([Suggestions])]"
+                    "(http://www.reddit.com/message/compose/?to=RemindMeBotWrangler&subject=Suggestion) | "
+                    "[^([Code])]"
+                    "(https://github.com/SIlver--/asoiafsearchbot-reddit)"
+
                 )
             
             print self._commentUser
-            self.comment.reply(self._commentUser)
+            #self.comment.reply(self._commentUser)
 
         except (HTTPError, ConnectionError, Timeout, timeout) as err:
             print err
@@ -362,9 +390,10 @@ def main():
 
     # Makes sure to keep going when an exception happens
     while True:
+        print "start"
         try:
             comments = praw.helpers.comment_stream(
-                reddit, 'asoiaf', limit = 100, verbosity = 0)
+                reddit, 'asoiaftest', limit = 100, verbosity = 0)
             commentCount = 0
 
             for comment in comments:
@@ -377,14 +406,13 @@ def main():
                     # with Spoilers All as it's 0
                     if allBooks.title != None:
                         allBooks.which_book()
-                        # Build book tuple
-                        allBooks.from_database_to_dict()
                         # Don't respond to the comment a second time
                         if allBooks.comment.id not in allBooks.commented:  
                             # skips when SearchCOMMAND! is higher than (Spoiler Tag)
                             if (allBooks.bookCommand.value <= allBooks.title.value or
                                 allBooks.title.value == 0):
                                 allBooks.parse_comment()
+                                allBooks.from_database_to_dict()
                                 allBooks.find_the_search_term()
                                 allBooks.build_message()
                                 allBooks.reply()
@@ -406,3 +434,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
