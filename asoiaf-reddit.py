@@ -11,7 +11,7 @@ from praw.errors import APIException, RateLimitExceeded
 import re
 from requests.exceptions import HTTPError, ConnectionError, Timeout
 from socket import timeout
-import time
+from time import gmtime, strftime
 from enum import Enum
 import nltk
 
@@ -112,29 +112,25 @@ class Books(object):
             SEARCH TERM
         """
 
-        # Removes everything before Search.!
+        # Removes everything before and including Search.!
         self._searchTerm = ''.join(re.split(
                                 r'Search(All|AGOT|ACOK|ASOS|AFFC|ADWD)!', 
                                 self.comment.body)[2:]
                             )
 
-        # INSENSITIVE
+        # Kept for legacy reasons
         search_brackets = re.search('"(.*?)"', self._searchTerm)
         if search_brackets:
             self._searchTerm = search_brackets.group(0)
-            self._sensitive = False
-
-        
-
-        # SENSITIVE
         search_tri = re.search('\((.*?)\)', self._searchTerm)
         if search_tri:
             self._searchTerm = search_tri.group(0)
-            self._sensitive = True
         
         # quotations at start and end
-        self._searchTerm = self._searchTerm[1:-1]
-        self._searchTerm = self._searchTerm.strip()
+        # fringes cases for when people don't do it right
+        if search_brackets or search_tri:
+            self._searchTerm = self._searchTerm[1:-1]
+            self._searchTerm = self._searchTerm.strip()
 
     def from_database_to_dict(self):
         """
@@ -142,14 +138,16 @@ class Books(object):
         """
         grabDB = Connect()
         query = (
-            'SELECT * from {table} {bookQuery}'
+            'SELECT * from {table} WHERE MATCH({col1})' 
+            'AGAINST(\'"{term}"\' IN BOOLEAN MODE) {bookQuery}'
             'ORDER BY FIELD' 
             '({col2}, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD")'
             ).format(
                 table = table,
+                term = self._searchTerm,
                 bookQuery = self._bookQuery,
+                col1 = column1,
                 col2 = column2)
-
         grabDB.execute(query)
 
         # Each row counts as a chapter
@@ -170,11 +168,10 @@ class Books(object):
         else:
             # Allows the tuple to be changable
             holdList = list(self._bookContainer)
-
         for i in range(len(holdList)):
             # checks if the word is in that chapter
-            foundTerm = re.findall("(\W|^)" + self._searchTerm.lower() +
-                    "(\W|$)", holdList[i][5].lower())
+            foundTerm = re.findall(r"\b" + self._searchTerm +
+                r"\b", holdList[i][5], flags=re.IGNORECASE)
             # count the occurrence
             storyLen = len(foundTerm)
             holdList[i] += (storyLen,)
@@ -216,17 +213,14 @@ class Books(object):
 
         # Seperate the chapters into sentences
         searchSentences = sent_tokenize.tokenize(chapter, realign_boundaries=True)
-
+        findIt = r"\b" + self._searchTerm + r"\b"
         for word in searchSentences:
-            regex = (re.sub("(\W|^)" + self._searchTerm + "(\W|$)",  
-                " **" + self._searchTerm + "** ", 
+            regex = (re.sub(findIt,  
+                "**" + self._searchTerm.upper() + "**", 
                 word, flags=re.IGNORECASE))
             if regex != word:
                 return regex
         
-
-
-
     def which_book(self):
         """
         self.title holds the farthest book in the series the
@@ -236,14 +230,14 @@ class Books(object):
         # When command is SearchAll! the specific searches 
         # will instead be used. example SearchASOS!
         if self.bookCommand.name != 'All':
-            self._bookQuery = ('WHERE {col2} = "{book}"'
+            self._bookQuery = ('AND {col2} = "{book}"'
                 ).format(col2 = column2,
                         book = self.bookCommand.name)
         # Starts from AGOT ends at what self.title is
         # Not needed for All(0) because the SQL does it by default
         elif self.title.value != 0:
             # First time requires AND, next are ORs
-            self._bookQuery += ('WHERE ({col2} = "{book}" '
+            self._bookQuery += ('AND ({col2} = "{book}" '
                 ).format(col2 = column2,
                         book = 'AGOT')
             # start the loop after AGOT
@@ -262,30 +256,28 @@ class Books(object):
         Build message that will be sent to the reddit user
         """
         commentUser = (
-                "######&#009;\n\n####&#009;\n\n#####&#009;\n\n"
-                "**SEARCH TERM ({caps}): {term}** \n\n "
+                "**SEARCH TERM: {term}** \n\n "
                 "Total Occurrence: {totalOccur} \n\n"
                 "Total Chapters: {totalChapter} \n\n"
                 "{warning}"
                 ">{message}"
-                "{visual}"
-                "\n_____\n^(I'm ASOIAFSearchBot, I will display the occurrence "
-                "of your search term throughout the books.) " 
-                "[^(More Info Here)]"
+                "\n_____\n" 
+                "[^([More Info Here])]"
                 "(http://www.reddit.com/r/asoiaf/comments/25amke/"
-                "spoilers_all_introducing_asoiafsearchbot_command/)"
+                "spoilers_all_introducing_asoiafsearchbot_command/) | "
+                "[^([Practice Thread])]"
+                "(http://www.reddit.com/r/asoiaf/comments/26ez9u/"
+                "spoilers_all_asoiafsearchbot_practice_thread/) | "
+                "[^([Suggestions])]"
+                "(http://www.reddit.com/message/compose/?to=RemindMeBotWrangler&subject=Suggestion) | "
+                "[^([Code])]"
+                "(https://github.com/SIlver--/asoiafsearchbot-reddit)"
+
             )
-        # Don't show visual when no results
-        visual = ""
         warning = ""
-        if self._total > 0:
-            visual = (
-                "\n[Visualization of the search term. May contain unwanted spoilers.]"
-                "(http://creative-co.de/labs/songicefire/?terms={term})"
-                ).format(term = self._searchTerm)
         if self.title.name != 'All':
-            warning = ("**THE FOLLOWING IS ONLY FOR {book} AND UNDER DUE TO THE SPOILER TAG IN THIS THREAD. "
-                "MAYHAPS YOU SHOULD TRY THE REQUEST IN ANOTHER THREAD IF YOU WANT MORE, heh.** \n\n").format(
+            warning = ("**ONLY** for **{book}** and under due to the spoiler tag in the title. " 
+                "Try the practice thread to reduce spam and keep the thread on topic.\n\n").format(
                             book = self.title.name,
             )
         if self._rowCount >= MAX_ROWS:
@@ -302,25 +294,14 @@ class Books(object):
         elif self._total == 0:
                 self._message = "**Sorry no results.**\n\n"
                 
-        caseSensitive = "CASE-SENSITIVE" if self._sensitive else "CASE-INSENSITIVE"    
-        
         self._commentUser = commentUser.format(
             warning = warning,
-            caps = caseSensitive,
             term = self._searchTerm,
             totalOccur = self._total,
             message = self._message,
-            visual = visual,
             totalChapter = self._rowCount
         )
         
-        # used for caching
-        if self._sensitive:
-            self.termHistorySensitive[self._searchTerm] = self._message
-        else:
-            self.termHistory[self._searchTerm] = self._message
-            
-            
     def reply(self, spoiler=False):
         """
         Reply to reddit user. If the search would be a spoiler
@@ -329,14 +310,20 @@ class Books(object):
         try:
             if spoiler:
                 self._commentUser = (
-                    "######&#009;\n\n####&#009;\n\n#####&#009;\n\n"
                     ">**Sorry, fulfilling this request would be a spoiler due to the spoiler tag in this thread. "
                     "Mayhaps try the request in another thread, heh.**\n\n"
-                    "\n_____\n^(I'm ASOIAFSearchBot, I will display the occurrence "
-                    "of your search term throughout the books.) " 
-                    "[^(More Info Here)]"
+                    "\n_____\n" 
+                    "[^([More Info Here])]"
                     "(http://www.reddit.com/r/asoiaf/comments/25amke/"
-                    "spoilers_all_introducing_asoiafsearchbot_command/)"
+                    "spoilers_all_introducing_asoiafsearchbot_command/) | "
+                    "[^([Practice Thread])]"
+                    "(http://www.reddit.com/r/asoiaf/comments/26ez9u/"
+                    "spoilers_all_asoiafsearchbot_practice_thread/) | "
+                    "[^([Suggestions])]"
+                    "(http://www.reddit.com/message/compose/?to=RemindMeBotWrangler&subject=Suggestion) | "
+                    "[^([Code])]"
+                    "(https://github.com/SIlver--/asoiafsearchbot-reddit)"
+
                 )
             
             print self._commentUser
@@ -419,14 +406,13 @@ def main():
                     # with Spoilers All as it's 0
                     if allBooks.title != None:
                         allBooks.which_book()
-                        # Build book tuple
-                        allBooks.from_database_to_dict()
                         # Don't respond to the comment a second time
                         if allBooks.comment.id not in allBooks.commented:  
                             # skips when SearchCOMMAND! is higher than (Spoiler Tag)
                             if (allBooks.bookCommand.value <= allBooks.title.value or
                                 allBooks.title.value == 0):
                                 allBooks.parse_comment()
+                                allBooks.from_database_to_dict()
                                 allBooks.find_the_search_term()
                                 allBooks.build_message()
                                 allBooks.reply()
