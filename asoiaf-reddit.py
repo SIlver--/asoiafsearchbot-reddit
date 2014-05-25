@@ -11,7 +11,7 @@ from praw.errors import APIException, RateLimitExceeded
 import re
 from requests.exceptions import HTTPError, ConnectionError, Timeout
 from socket import timeout
-from time import gmtime, strftime
+import time
 from enum import Enum
 import nltk
 
@@ -131,20 +131,20 @@ class Books(object):
         if search_brackets or search_tri:
             self._searchTerm = self._searchTerm[1:-1]
             self._searchTerm = self._searchTerm.strip()
+        
 
     def from_database_to_dict(self):
         """
         Transfers everything from the database to a tuple type
         """
+        # incase of quotations
         grabDB = Connect()
         query = (
-            'SELECT * from {table} WHERE MATCH({col1})' 
-            'AGAINST(\'"{term}"\' IN BOOLEAN MODE) {bookQuery}'
-            'ORDER BY FIELD' 
+            'SELECT * from {table} {bookQuery}'
+            'ORDER BY FIELD ' 
             '({col2}, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD")'
             ).format(
                 table = table,
-                term = self._searchTerm,
                 bookQuery = self._bookQuery,
                 col1 = column1,
                 col2 = column2)
@@ -230,14 +230,14 @@ class Books(object):
         # When command is SearchAll! the specific searches 
         # will instead be used. example SearchASOS!
         if self.bookCommand.name != 'All':
-            self._bookQuery = ('AND {col2} = "{book}"'
+            self._bookQuery = ('WHERE {col2} = "{book}" '
                 ).format(col2 = column2,
                         book = self.bookCommand.name)
         # Starts from AGOT ends at what self.title is
         # Not needed for All(0) because the SQL does it by default
         elif self.title.value != 0:
-            # First time requires AND, next are ORs
-            self._bookQuery += ('AND ({col2} = "{book}" '
+            # First time requires WHERE, next are ORs
+            self._bookQuery += ('WHERE ({col2} = "{book}" '
                 ).format(col2 = column2,
                         book = 'AGOT')
             # start the loop after AGOT
@@ -249,7 +249,7 @@ class Books(object):
                     self._bookQuery += ('OR {col2} = "{book}" '
                         ).format(col2 = column2,
                                 book = curBook)
-            self._bookQuery += ")" # close the AND in the MSQL
+            self._bookQuery += ")" # close the WHERE in the MSQL
 
     def build_message(self):
         """
@@ -257,6 +257,7 @@ class Books(object):
         """
         commentUser = (
                 "**SEARCH TERM: {term}** \n\n "
+                "**Try the practice thread to reduce spam and keep the current thread on topic.**\n\n"
                 "Total Occurrence: {totalOccur} \n\n"
                 "Total Chapters: {totalChapter} \n\n"
                 "{warning}"
@@ -276,8 +277,7 @@ class Books(object):
             )
         warning = ""
         if self.title.name != 'All':
-            warning = ("**ONLY** for **{book}** and under due to the spoiler tag in the title. " 
-                "Try the practice thread to reduce spam and keep the thread on topic.\n\n").format(
+            warning = ("**ONLY** for **{book}** and under due to the spoiler tag in the title.\n\n").format(
                             book = self.title.name,
             )
         if self._rowCount >= MAX_ROWS:
@@ -312,6 +312,7 @@ class Books(object):
                 self._commentUser = (
                     ">**Sorry, fulfilling this request would be a spoiler due to the spoiler tag in this thread. "
                     "Mayhaps try the request in another thread, heh.**\n\n"
+                    "Try the practice thread to reduce spam and keep the current thread on topic.\n\n"
                     "\n_____\n" 
                     "[^([More Info Here])]"
                     "(http://www.reddit.com/r/asoiaf/comments/25amke/"
@@ -327,7 +328,7 @@ class Books(object):
                 )
             
             print self._commentUser
-            #self.comment.reply(self._commentUser)
+            self.comment.reply(self._commentUser)
 
         except (HTTPError, ConnectionError, Timeout, timeout) as err:
             print err
@@ -393,7 +394,7 @@ def main():
         print "start"
         try:
             comments = praw.helpers.comment_stream(
-                reddit, 'asoiaftest', limit = 100, verbosity = 0)
+                reddit, 'asoiaf', limit = 100, verbosity = 0)
             commentCount = 0
 
             for comment in comments:
