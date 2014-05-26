@@ -72,7 +72,8 @@ class Title(Enum):
     ASOS = 3
     AFFC = 4
     ADWD = 5
-
+    DandE = 6
+    PandQ = 7
 
 class Books(object):
     """
@@ -344,7 +345,7 @@ class Books(object):
     def watch_for_spoilers(self):
         """
         Decides what the scope of spoilers based of the title.
-        This means that searchADWD! Shouldn't be used in (Spoiler AGOT).
+        This means that searchADWD! Shouldn't besed in (Spoiler AGOT).
         """
         
         # loop formats each name into the regex
@@ -356,11 +357,15 @@ class Books(object):
                 ).format(name = name.lower(), nameRemove = name[1:].lower())
             if re.search(regex, self.comment.link_title.lower()):
                 self.title = member
-        # these books are not in Title Enum but follows the same guidelines
-        # TODO: Fix when new books are added to the database
-        if re.search ("(\(|\[).*(published|twow|d&amp;e|d &amp; e"
-            "|dunk.*egg|p\s?\&amp;\s?q).*(\)|\])", self.comment.link_title.lower()):
+        # these titles are not in Title Enum but follows the same guidelines
+        if re.search ("(\(|\[).*(published|twow).*(\)|\])"
+            , self.comment.link_title.lower()):
             self.title = Title.All
+        # TODO: Fix when new books are added to the database        
+        if re.search ("(\(|\[).*(d&amp;e|d &amp; e|dunk.*egg).*(\)|\])", self.comment.link_title.lower()):
+            self.title = Title.DandE
+        if re.search ("(\(|\[).*(p\s?\&amp;\s?q).*(\)|\])", self.comment.link_title.lower()):
+            self.title = Title.PandQ
         # Decides which book the user picked based on the command.
         # SearchAGOT! to SearchADWD!
         for name, member in Title.__members__.items():
