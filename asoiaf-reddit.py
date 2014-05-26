@@ -11,7 +11,7 @@ from praw.errors import APIException, RateLimitExceeded
 import re
 from requests.exceptions import HTTPError, ConnectionError, Timeout
 from socket import timeout
-from time import gmtime, strftime
+import time
 from enum import Enum
 import nltk
 
@@ -72,7 +72,8 @@ class Title(Enum):
     ASOS = 3
     AFFC = 4
     ADWD = 5
-
+    PQ = 6
+    DE = 7
 
 class Books(object):
     """
@@ -114,7 +115,7 @@ class Books(object):
 
         # Removes everything before and including Search.!
         self._searchTerm = ''.join(re.split(
-                                r'Search(All|AGOT|ACOK|ASOS|AFFC|ADWD)!', 
+                                r'Search(All|AGOT|ACOK|ASOS|AFFC|ADWD|DE|PQ)!', 
                                 self.comment.body)[2:]
                             )
 
@@ -131,20 +132,20 @@ class Books(object):
         if search_brackets or search_tri:
             self._searchTerm = self._searchTerm[1:-1]
             self._searchTerm = self._searchTerm.strip()
+        
 
     def from_database_to_dict(self):
         """
         Transfers everything from the database to a tuple type
         """
+        # incase of quotations
         grabDB = Connect()
         query = (
-            'SELECT * from {table} WHERE MATCH({col1})' 
-            'AGAINST(\'"{term}"\' IN BOOLEAN MODE) {bookQuery}'
-            'ORDER BY FIELD' 
-            '({col2}, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD")'
+            'SELECT * from {table} {bookQuery}'
+            'ORDER BY FIELD ' 
+            '({col2}, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD", "DE", "PQ")'
             ).format(
                 table = table,
-                term = self._searchTerm,
                 bookQuery = self._bookQuery,
                 col1 = column1,
                 col2 = column2)
@@ -230,38 +231,41 @@ class Books(object):
         # When command is SearchAll! the specific searches 
         # will instead be used. example SearchASOS!
         if self.bookCommand.name != 'All':
-            self._bookQuery = ('AND {col2} = "{book}"'
+            self._bookQuery = ('WHERE {col2} = "{book}" '
                 ).format(col2 = column2,
                         book = self.bookCommand.name)
         # Starts from AGOT ends at what self.title is
         # Not needed for All(0) because the SQL does it by default
         elif self.title.value != 0:
-            # First time requires AND, next are ORs
-            self._bookQuery += ('AND ({col2} = "{book}" '
+            # First time requires WHERE, next are ORs
+            self._bookQuery += ('WHERE ({col2} = "{book}" '
                 ).format(col2 = column2,
                         book = 'AGOT')
             # start the loop after AGOT
             for x in range(2, self.title.value+1):
                 # assign current loop the name of the enum's value
-                curBook = Title(x).name
+                curBook = Title(x).name 
                 # Shouldn't add ORs if it's AGOT
+                # and shouldn't add D&E and P&Q
                 if Title(x) != 1:
                     self._bookQuery += ('OR {col2} = "{book}" '
                         ).format(col2 = column2,
                                 book = curBook)
-            self._bookQuery += ")" # close the AND in the MSQL
+            self._bookQuery += ")" # close the WHERE in the MSQL
 
     def build_message(self):
         """
         Build message that will be sent to the reddit user
         """
         commentUser = (
-                "**SEARCH TERM: {term}** \n\n "
+                "**SEARCH TERM: {term}**\n\n"
+                "{warning}"
+                "######&#009;\n\n####&#009;\n\n#####&#009;\n\n"
                 "Total Occurrence: {totalOccur} \n\n"
                 "Total Chapters: {totalChapter} \n\n"
-                "{warning}"
                 ">{message}"
                 "\n_____\n" 
+                "**Try the practice thread to reduce spam and keep the current thread on topic.**\n\n"
                 "[^([More Info Here])]"
                 "(http://www.reddit.com/r/asoiaf/comments/25amke/"
                 "spoilers_all_introducing_asoiafsearchbot_command/) | "
@@ -275,9 +279,8 @@ class Books(object):
 
             )
         warning = ""
-        if self.title.name != 'All':
-            warning = ("**ONLY** for **{book}** and under due to the spoiler tag in the title. " 
-                "Try the practice thread to reduce spam and keep the thread on topic.\n\n").format(
+        if self.title.name != 'All' and self.title.name != 'PQ' and self.title.name != 'DE':
+            warning = ("**ONLY** for **{book}** and under due to the spoiler tag in the title.\n\n").format(
                             book = self.title.name,
             )
         if self._rowCount >= MAX_ROWS:
@@ -312,6 +315,7 @@ class Books(object):
                 self._commentUser = (
                     ">**Sorry, fulfilling this request would be a spoiler due to the spoiler tag in this thread. "
                     "Mayhaps try the request in another thread, heh.**\n\n"
+                    "**Try the practice thread to reduce spam and keep the current thread on topic.**\n\n"
                     "\n_____\n" 
                     "[^([More Info Here])]"
                     "(http://www.reddit.com/r/asoiaf/comments/25amke/"
@@ -342,7 +346,7 @@ class Books(object):
     def watch_for_spoilers(self):
         """
         Decides what the scope of spoilers based of the title.
-        This means that searchADWD! Shouldn't be used in (Spoiler AGOT).
+        This means that searchADWD! Shouldn't besed in (Spoiler AGOT).
         """
         
         # loop formats each name into the regex
@@ -354,11 +358,18 @@ class Books(object):
                 ).format(name = name.lower(), nameRemove = name[1:].lower())
             if re.search(regex, self.comment.link_title.lower()):
                 self.title = member
-        # these books are not in Title Enum but follows the same guidelines
-        # TODO: Fix when new books are added to the database
-        if re.search ("(\(|\[).*(published|twow|d&amp;e|d &amp; e"
-            "|dunk.*egg|p\s?\&amp;\s?q).*(\)|\])", self.comment.link_title.lower()):
+                # Fixes problem where DE|E trigger it
+                break
+
+        # these titles are not in Title Enum but follows the same guidelines
+        if re.search ("(\(|\[).*(published|twow).*(\)|\])"
+            , self.comment.link_title.lower()):
             self.title = Title.All
+        # TODO: Fix when new books are added to the database        
+        if re.search ("(\(|\[).*(d&amp;e|d &amp; e|dunk.*egg).*(\)|\])", self.comment.link_title.lower()):
+            self.title = Title.DE
+        if re.search ("(\(|\[).*(p\s?\&amp;\s?q).*(\)|\])", self.comment.link_title.lower()):
+            self.title = Title.PQ
         # Decides which book the user picked based on the command.
         # SearchAGOT! to SearchADWD!
         for name, member in Title.__members__.items():
@@ -393,14 +404,14 @@ def main():
         print "start"
         try:
             comments = praw.helpers.comment_stream(
-                reddit, 'asoiaftest', limit = 100, verbosity = 0)
+                reddit, 'asoiaftest', limit = 5, verbosity = 0)
             commentCount = 0
 
             for comment in comments:
                 commentCount += 1
                 # Makes the instance attribute bookTuple
                 allBooks = Books(comment)
-                if re.search('Search(All|AGOT|ACOK|ASOS|AFFC|ADWD)!', comment.body):
+                if re.search('Search(All|AGOT|ACOK|ASOS|AFFC|ADWD|DE|PQ)!', comment.body):
                     allBooks.watch_for_spoilers()
                     # Note: None needs to be explict as this evalutes to
                     # with Spoilers All as it's 0
