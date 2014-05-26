@@ -72,8 +72,8 @@ class Title(Enum):
     ASOS = 3
     AFFC = 4
     ADWD = 5
-    DandE = 6
-    PandQ = 7
+    PQ = 6
+    DE = 7
 
 class Books(object):
     """
@@ -115,7 +115,7 @@ class Books(object):
 
         # Removes everything before and including Search.!
         self._searchTerm = ''.join(re.split(
-                                r'Search(All|AGOT|ACOK|ASOS|AFFC|ADWD)!', 
+                                r'Search(All|AGOT|ACOK|ASOS|AFFC|ADWD|DE|PQ)!', 
                                 self.comment.body)[2:]
                             )
 
@@ -143,7 +143,7 @@ class Books(object):
         query = (
             'SELECT * from {table} {bookQuery}'
             'ORDER BY FIELD ' 
-            '({col2}, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD")'
+            '({col2}, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD", "DE", "PQ")'
             ).format(
                 table = table,
                 bookQuery = self._bookQuery,
@@ -244,8 +244,9 @@ class Books(object):
             # start the loop after AGOT
             for x in range(2, self.title.value+1):
                 # assign current loop the name of the enum's value
-                curBook = Title(x).name
+                curBook = Title(x).name 
                 # Shouldn't add ORs if it's AGOT
+                # and shouldn't add D&E and P&Q
                 if Title(x) != 1:
                     self._bookQuery += ('OR {col2} = "{book}" '
                         ).format(col2 = column2,
@@ -278,7 +279,7 @@ class Books(object):
 
             )
         warning = ""
-        if self.title.name != 'All':
+        if self.title.name != 'All' and self.title.name != 'PQ' and self.title.name != 'DE':
             warning = ("**ONLY** for **{book}** and under due to the spoiler tag in the title.\n\n").format(
                             book = self.title.name,
             )
@@ -330,7 +331,7 @@ class Books(object):
                 )
             
             print self._commentUser
-            self.comment.reply(self._commentUser)
+            #self.comment.reply(self._commentUser)
 
         except (HTTPError, ConnectionError, Timeout, timeout) as err:
             print err
@@ -357,15 +358,18 @@ class Books(object):
                 ).format(name = name.lower(), nameRemove = name[1:].lower())
             if re.search(regex, self.comment.link_title.lower()):
                 self.title = member
+                # Fixes problem where DE|E trigger it
+                break
+
         # these titles are not in Title Enum but follows the same guidelines
         if re.search ("(\(|\[).*(published|twow).*(\)|\])"
             , self.comment.link_title.lower()):
             self.title = Title.All
         # TODO: Fix when new books are added to the database        
         if re.search ("(\(|\[).*(d&amp;e|d &amp; e|dunk.*egg).*(\)|\])", self.comment.link_title.lower()):
-            self.title = Title.DandE
+            self.title = Title.DE
         if re.search ("(\(|\[).*(p\s?\&amp;\s?q).*(\)|\])", self.comment.link_title.lower()):
-            self.title = Title.PandQ
+            self.title = Title.PQ
         # Decides which book the user picked based on the command.
         # SearchAGOT! to SearchADWD!
         for name, member in Title.__members__.items():
@@ -400,14 +404,14 @@ def main():
         print "start"
         try:
             comments = praw.helpers.comment_stream(
-                reddit, 'asoiaf', limit = 100, verbosity = 0)
+                reddit, 'asoiaftest', limit = 5, verbosity = 0)
             commentCount = 0
 
             for comment in comments:
                 commentCount += 1
                 # Makes the instance attribute bookTuple
                 allBooks = Books(comment)
-                if re.search('Search(All|AGOT|ACOK|ASOS|AFFC|ADWD)!', comment.body):
+                if re.search('Search(All|AGOT|ACOK|ASOS|AFFC|ADWD|DE|PQ)!', comment.body):
                     allBooks.watch_for_spoilers()
                     # Note: None needs to be explict as this evalutes to
                     # with Spoilers All as it's 0
