@@ -256,13 +256,14 @@ class Books(object):
         Build message that will be sent to the reddit user
         """
         commentUser = (
-                "**SEARCH TERM: {term}** \n\n "
-                "**Try the practice thread to reduce spam and keep the current thread on topic.**\n\n"
+                "**SEARCH TERM: {term}**\n\n"
+                "{warning}"
+                "######&#009;\n\n####&#009;\n\n#####&#009;\n\n"
                 "Total Occurrence: {totalOccur} \n\n"
                 "Total Chapters: {totalChapter} \n\n"
-                "{warning}"
                 ">{message}"
                 "\n_____\n" 
+                "**Try the practice thread to reduce spam and keep the current thread on topic.**\n\n"
                 "[^([More Info Here])]"
                 "(http://www.reddit.com/r/asoiaf/comments/25amke/"
                 "spoilers_all_introducing_asoiafsearchbot_command/) | "
@@ -312,7 +313,7 @@ class Books(object):
                 self._commentUser = (
                     ">**Sorry, fulfilling this request would be a spoiler due to the spoiler tag in this thread. "
                     "Mayhaps try the request in another thread, heh.**\n\n"
-                    "Try the practice thread to reduce spam and keep the current thread on topic.\n\n"
+                    "**Try the practice thread to reduce spam and keep the current thread on topic.**\n\n"
                     "\n_____\n" 
                     "[^([More Info Here])]"
                     "(http://www.reddit.com/r/asoiaf/comments/25amke/"
