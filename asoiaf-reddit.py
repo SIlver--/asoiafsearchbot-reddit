@@ -72,8 +72,8 @@ class Title(Enum):
     ASOS = 3
     AFFC = 4
     ADWD = 5
-    PQ = 6
-    DE = 7
+    DE = 6
+    PQ = 7
 
 class Books(object):
     """
@@ -128,10 +128,11 @@ class Books(object):
             self._searchTerm = search_tri.group(0)
         
         # quotations at start and end
-        # fringes cases for when people don't do it right
         if search_brackets or search_tri:
             self._searchTerm = self._searchTerm[1:-1]
-            self._searchTerm = self._searchTerm.strip()
+
+        # legacy: as the user doesn't need to do "" or ()
+        self._searchTerm = self._searchTerm.strip()
         
 
     def from_database_to_dict(self):
@@ -171,7 +172,7 @@ class Books(object):
             holdList = list(self._bookContainer)
         for i in range(len(holdList)):
             # checks if the word is in that chapter
-            foundTerm = re.findall(r"\b" + self._searchTerm +
+            foundTerm = re.findall(r"\b" + re.escape(self._searchTerm) +
                 r"\b", holdList[i][5], flags=re.IGNORECASE)
             # count the occurrence
             storyLen = len(foundTerm)
@@ -214,7 +215,7 @@ class Books(object):
 
         # Seperate the chapters into sentences
         searchSentences = sent_tokenize.tokenize(chapter, realign_boundaries=True)
-        findIt = r"\b" + self._searchTerm + r"\b"
+        findIt = r"\b" + re.escape(self._searchTerm) + r"\b"
         for word in searchSentences:
             regex = (re.sub(findIt,  
                 "**" + self._searchTerm.upper() + "**", 
@@ -259,10 +260,11 @@ class Books(object):
         """
         commentUser = (
                 "**SEARCH TERM: {term}**\n\n"
-                "{warning}"
-                "######&#009;\n\n####&#009;\n\n#####&#009;\n\n"
                 "Total Occurrence: {totalOccur} \n\n"
                 "Total Chapters: {totalChapter} \n\n"
+                "{warning}"
+                "######&#009;\n\n####&#009;\n\n#####&#009;\n\n"
+                "&#009;\n\n&#009;\n\n"
                 ">{message}"
                 "\n_____\n" 
                 "**Try the practice thread to reduce spam and keep the current thread on topic.**\n\n"
@@ -331,7 +333,7 @@ class Books(object):
                 )
             
             print self._commentUser
-            #self.comment.reply(self._commentUser)
+            self.comment.reply(self._commentUser)
 
         except (HTTPError, ConnectionError, Timeout, timeout) as err:
             print err
@@ -356,11 +358,11 @@ class Books(object):
             # Remove first letter incase of cases like GOT
             regex = ("(\(|\[).*({name}|{nameRemove}).*(\)|\])"
                 ).format(name = name.lower(), nameRemove = name[1:].lower())
-            if re.search(regex, self.comment.link_title.lower()):
+            if (re.search(regex, self.comment.link_title.lower()) and
+                # stops false positives as their regex is more complex
+                name != 'DE' and name != 'PQ'):
                 self.title = member
-                # Fixes problem where DE|E trigger it
                 break
-
         # these titles are not in Title Enum but follows the same guidelines
         if re.search ("(\(|\[).*(published|twow).*(\)|\])"
             , self.comment.link_title.lower()):
@@ -404,7 +406,7 @@ def main():
         print "start"
         try:
             comments = praw.helpers.comment_stream(
-                reddit, 'asoiaftest', limit = 5, verbosity = 0)
+                reddit, 'asoiaf', limit = 100, verbosity = 0)
             commentCount = 0
 
             for comment in comments:
