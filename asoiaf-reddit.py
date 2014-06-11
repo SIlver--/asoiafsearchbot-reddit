@@ -158,18 +158,10 @@ class Books(object):
 
     def find_the_search_term(self,rowsTooLong=None):
         """
-        Search through the books which chapter holds the search
-        term. Then count each use in said chapter. Recursion used
-        for when above 30. Makes it so only top 30 results are shown.
+        Search through the books which chapter holds the search term.
         """
-        # Sort from highest occurrence to lowest, only top 30
-        if rowsTooLong:
-            self._listOccurrence[:] = [] 
-            holdList = rowsTooLong
-            holdList = sorted(holdList, key=lambda tup: tup[6], reverse=True)
-        else:
-            # Allows the tuple to be changable
-            holdList = list(self._bookContainer)
+        # Allows the tuple to be changable
+        holdList = list(self._bookContainer)
         for i in range(len(holdList)):
             # checks if the word is in that chapter
             foundTerm = re.findall(r"\b" + re.escape(self._searchTerm) +
@@ -178,34 +170,41 @@ class Books(object):
             storyLen = len(foundTerm)
             holdList[i] += (storyLen,)
 
-
             if foundTerm:
-                # keep the count during the recursion
-                if not rowsTooLong:
-                    self._total += storyLen
-                    self._rowCount += 1
-                    # adds to the end of holdList[i], it now exists during the recursion
-                    holdList[i] += (self.sentences_to_quote(holdList[i][5]), )
-                # Stores each found word as a list of strings
-                self._listOccurrence.append(
-                    "| {series}| {book}| {number}| {chapter}| {pov}| {occur}| {quote}".format(
-                        series = holdList[i][0],
-                        book = holdList[i][1],
-                        number = holdList[i][2],
-                        chapter = holdList[i][3],
-                        pov = holdList[i][4],
-                        occur = holdList[i][6],
-                        quote = holdList[i][7]
+                self._total += storyLen
+                self._rowCount += 1
+                holdList[i] += (self.sentences_to_quote(holdList[i][5]), )
+                self.append_to_list(holdList[i])
+
+        # call upon if it's rowcount ends up being above 30
+        if self._rowCount > MAX_ROWS:
+            holdList = self.rows_too_long(holdList)
+            self._listOccurrence[:] = []
+            for i in range(len(holdList)):
+                self.append_to_list(holdList[i])
+
+    def append_to_list(self, holdList):
+        # Stores each found word as a list of strings
+        self._listOccurrence.append(
+                "| {series}| {book}| {number}| {chapter}| {pov}| {occur}| {quote}".format(
+                        series = holdList[0],
+                        book = holdList[1],
+                        number = holdList[2],
+                        chapter = holdList[3],
+                        pov = holdList[4],
+                        occur = holdList[6],
+                        quote = holdList[7]
                     )
                 )
-
-                # Ends the recursion loop
-                if i >= MAX_ROWS and rowsTooLong:
-                        break
-
-        # recursion to sort with top 30, checks at the end of loop
-        if self._rowCount >= MAX_ROWS and not rowsTooLong:
-            self.find_the_search_term(rowsTooLong=holdList)
+                
+    def rows_too_long(self,holdList):
+        """
+        Sorts the rows to only show top 30 results
+        remove after 30
+        """
+        holdList = sorted(holdList, key=lambda tup: tup[6], reverse=True)
+        holdList[MAX_ROWS:] = []
+        return holdList
 
     def sentences_to_quote(self, chapter):
         """
@@ -217,8 +216,8 @@ class Books(object):
         searchSentences = sent_tokenize.tokenize(chapter, realign_boundaries=True)
         findIt = r"\b" + re.escape(self._searchTerm) + r"\b"
         for word in searchSentences:
-            regex = (re.sub(findIt,  
-                "**" + self._searchTerm.upper() + "**", 
+            regex = (re.sub(findIt,
+                "**" + self._searchTerm.upper() + "**",
                 word, flags=re.IGNORECASE))
             if regex != word:
                 return regex
@@ -285,7 +284,7 @@ class Books(object):
             warning = ("**ONLY** for **{book}** and under due to the spoiler tag in the title.\n\n").format(
                             book = self.title.name,
             )
-        if self._rowCount >= MAX_ROWS:
+        if self._rowCount > MAX_ROWS:
             warning += ("Excess number of chapters. Sorted by highest to lowest, top 30 results only.\n\n")
         # Avoids spam and builds table heading only when condition is met
         if self._total > 0:
@@ -333,7 +332,7 @@ class Books(object):
                 )
             
             print self._commentUser
-            self.comment.reply(self._commentUser)
+            #self.comment.reply(self._commentUser)
 
         except (HTTPError, ConnectionError, Timeout, timeout) as err:
             print err
@@ -419,8 +418,8 @@ def main():
                     # with Spoilers All as it's 0
                     if allBooks.title != None:
                         allBooks.which_book()
-                        # Don't respond to the comment a second time
-                        if allBooks.comment.id not in allBooks.commented:  
+                        # Don't respond to the comment a second time 
+                        if allBooks.comment.id not in allBooks.commented:
                             # skips when SearchCOMMAND! is higher than (Spoiler Tag)
                             if (allBooks.bookCommand.value <= allBooks.title.value or
                                 allBooks.title.value == 0):
@@ -447,4 +446,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
