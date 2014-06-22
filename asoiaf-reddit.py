@@ -14,6 +14,7 @@ from socket import timeout
 import time
 from enum import Enum
 import nltk
+from threading import Thread
 
 # =============================================================================
 # GLOBALS
@@ -35,10 +36,17 @@ MAX_ROWS = 30
 BOOK_CONTAINER = []
 sent_tokenize = nltk.data.load('tokenizers/punkt/english.pickle')
 
+# Reddit Info
+user_agent = (
+        "ASOIAFSearchBot -Help you find that comment"
+        "- by /u/RemindMeBotWrangler")
+reddit = praw.Reddit(user_agent = user_agent)
+reddit_user = config.get("Reddit", "username")
+reddit_pass = config.get("Reddit", "password")
+reddit.login(reddit_user, reddit_pass)
 # =============================================================================
 # CLASSES
 # =============================================================================
-
 
 class Connect(object):
     """
@@ -106,16 +114,16 @@ class Books(object):
     def parse_comment(self):
         """
         Changes user comment from:
-            Lorem ipsum dolor sit amet, consectetur adipiscing elit.
-            ullam laoreet volutpat accumsan.
-            SearchAll! "SEARCH TERM"
+        Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+        ullam laoreet volutpat accumsan.
+        SearchAll! "SEARCH TERM"
         into finally just:
-            SEARCH TERM
+        SEARCH TERM
         """
 
         # Removes everything before and including Search.!
         self._searchTerm = ''.join(re.split(
-                                r'Search(All|AGOT|ACOK|ASOS|AFFC|ADWD|DE|PQ)!', 
+                                r'Search(All|AGOT|ACOK|ASOS|AFFC|ADWD|DE|PQ)!',
                                 self.comment.body)[2:]
                             )
 
@@ -143,7 +151,7 @@ class Books(object):
         grabDB = Connect()
         query = (
             'SELECT * from {table} {bookQuery}'
-            'ORDER BY FIELD ' 
+            'ORDER BY FIELD '
             '({col2}, "AGOT", "ACOK", "ASOS", "AFFC", "ADWD", "DE", "PQ")'
             ).format(
                 table = table,
@@ -228,6 +236,128 @@ class Books(object):
         SQL statement should go. So if the title is ASOS it will only
         do every occurence up to ASOS ONLY for SearchAll!
         """
+        # When command is SearchAll! the specific searches
+        # will instead be used. example SearchASOS!
+        if self.bookCommand.name != 'All':
+            self._bookQuery = ('WHERE {col2} = "{book}" '
+                ).format(col2 = column2,
+                        book = self.bookCommand.name)
+        # Starts from AGOT ends at what self.title is
+        # Not needed for All(0) because the SQL does it by default
+        elif self.title.value != 0:
+            # First time requires WHERE, next are ORs
+            self._bookQuery += ('WHERE ({col2} = "{book}" '
+                ).format(col2 = column2,
+                        book = 'AGOT')
+            # start the loop after AGOT
+            for x in range(2, self.title.value+1):
+                # assign current loop the name of the enum's value
+                curBook = Title(x).name
+                # Shouldn't add ORs if it's AGOT
+                # and shouldn't add D&E and P&Q
+                if Title(x) != 1:
+                    self._bookQuery += ('OR {col2} = "{book}" '
+                        ).format(col2 = column2,
+                                book = curBook)
+            self._bookQuery += ")" # close the WHERE in the MSQL
+
+    def build_message(self):
+        """
+        Build message that will be sent to the reddit user
+        """
+        commentUser = (
+                "**SEARCH TERM: {term}**\n\n"
+                "Total Occurrence: {totalOccur} \n\n"
+                "Total Chapters: {totalChapter} \n\n"
+                "{warning}"
+                "######&#009;\n\n####&#009;\n\n#####&#009;\n\n"
+                "&#009;\n\n&#009;\n\n"
+                ">{message}"
+                "\n_____\n"
+                "**Try the practice thread to reduce spam and keep the current thread on topic.**\n\n"
+                "[^([More Info Here])]"
+                "(http://www.reddit.com/r/asoiaf/comments/25amke/"
+                "spoilers_all_introducing_asoiafsearchbot_command/) | "
+                "[^([Practice Thread])]"
+                "(http://www.reddit.com/r/asoiaf/comments/26ez9u/"
+                "spoilers_all_asoiafsearchbot_practice_thread/) | "
+                "[^([Suggestions])]"
+                "(http://www.reddit.com/message/compose/?to=RemindMeBotWrangler&subject=Suggestion) | "
+                "[^([Code])]"
+                "(https://github.com/SIlver--/asoiafsearchbot-reddit)"
+
+            )
+        warning = ""
+        if self.title.name != 'All' and self.title.name != 'PQ' and self.title.name != 'DE':
+            warning = ("**ONLY** for **{book}** and under due to the spoiler tag in the title.\n\n").format(
+                            book = self.title.name,
+            )
+        if self._rowCount > MAX_ROWS:
+            warning += ("Excess number of chapters. Sorted by highest to lowest, top 30 results only.\n\n")
+        # Avoids spam and builds table heading only when condition is met
+        if self._total > 0:
+            self._message += (
+                "| Series| Book| Chapter| Chapter Name| Chapter POV| Occurrence| Quote^(First Occurrence Only)\n"
+            )
+            self._message += "|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|\n".format(dash='-' * 11)
+            # Each element added as a new row with new line
+            for row in self._listOccurrence:
+                self._message += row + "\n"
+        elif self._total == 0:
+                self._message = "**Sorry no results.**\n\n"
+                
+        self._commentUser = commentUser.format(
+            warning = warning,
+            term = self._searchTerm,
+            totalOccur = self._total,
+            message = self._message,
+            totalChapter = self._rowCount
+        )
+        
+    def reply(self, spoiler=False):
+        """
+        Reply to reddit user. If the search would be a spoiler
+        Send different message.
+        """
+        try:
+            if spoiler:
+                self._commentUser = (
+                    ">**Sorry, fulfilling this request would be a spoiler due to the spoiler tag in this thread. "
+                    "Mayhaps try the request in another thread, heh.**\n\n"
+                    "**Try the practice thread to reduce spam and keep the current thread on topic.**\n\n"
+                    "\n_____\n"
+                    "[^([More Info Here])]"
+                    "(http://www.reddit.com/r/asoiaf/comments/25amke/"
+                    "spoilers_all_introducing_asoiafsearchbot_command/) | "
+                    "[^([Practice Thread])]"
+                    "(http://www.reddit.com/r/asoiaf/comments/26ez9u/"
+                    "spoilers_all_asoiafsearchbot_practice_thread/) | "
+                    "[^([Suggestions])]"
+                    "(http://www.reddit.com/message/compose/?to=RemindMeBotWrangler&subject=Suggestion) | "
+                    "[^([Code])]"
+                    "(https://github.com/SIlver--/asoiafsearchbot-reddit)"
+
+                )
+            
+            print self._commentUser
+            #self.comment.reply(self._commentUser)
+
+        except (HTTPError, ConnectionError, Timeout, timeout) as err:
+            print err
+        except RateLimitExceeded as err:
+            print err
+            time.sleep(10)
+        except APIException as err: # Catch any less specific API errors
+            print err
+        else:
+            self.commented.append(self.comment.id)
+        
+    def which_book(self):
+        """
+        self.title holds the farthest book in the series the
+        SQL statement should go. So if the title is ASOS it will only
+        do every occurence up to ASOS ONLY for SearchAll!
+        """
         # When command is SearchAll! the specific searches 
         # will instead be used. example SearchASOS!
         if self.bookCommand.name != 'All':
@@ -284,7 +414,7 @@ class Books(object):
             warning = ("**ONLY** for **{book}** and under due to the spoiler tag in the title.\n\n").format(
                             book = self.title.name,
             )
-        if self._rowCount > MAX_ROWS:
+        if self._rowCount >= MAX_ROWS:
             warning += ("Excess number of chapters. Sorted by highest to lowest, top 30 results only.\n\n")
         # Avoids spam and builds table heading only when condition is met
         if self._total > 0:
@@ -332,7 +462,7 @@ class Books(object):
                 )
             
             print self._commentUser
-            #self.comment.reply(self._commentUser)
+            self.comment.reply(self._commentUser)
 
         except (HTTPError, ConnectionError, Timeout, timeout) as err:
             print err
@@ -376,10 +506,21 @@ class Books(object):
         for name, member in Title.__members__.items():
             search = ("Search{name}!").format(name = name)
             if search in self.comment.body:
-                self.bookCommand = member    
+                self.bookCommand = member
+        # accounts for /r/pureasoiaf
+        if str(self.comment.subreddit) == "pureasoiaf":
+            sub = reddit.get_submission(self.comment.permalink) 
+            if sub.link_flair_text == 'Spoilers Default':
+                self.title = Title.All
+            if sub.link_flair_text == 'No Spoilers':
+                self.title = Title.None
 
-
-
+    def run(self):
+        self.parse_comment()
+        self.from_database_to_dict()
+        self.find_the_search_term()
+        self.build_message()
+        self.reply()
 # =============================================================================
 # MAIN
 # =============================================================================
@@ -387,25 +528,12 @@ class Books(object):
 
 def main():
     """Main runner"""
-    try:
-        # Reddit Info
-        user_agent = (
-                "ASOIAFSearchBot -Help you find that comment"
-                "- by /u/RemindMeBotWrangler")
-        reddit = praw.Reddit(user_agent = user_agent)
-        reddit_user = config.get("Reddit", "username")
-        reddit_pass = config.get("Reddit", "password")
-        reddit.login(reddit_user, reddit_pass)
 
-    except Exception as err:
-        print err
-
-    # Makes sure to keep going when an exception happens
     while True:
         print "start"
         try:
             comments = praw.helpers.comment_stream(
-                reddit, 'asoiaf', limit = 100, verbosity = 0)
+                reddit, 'pureasoiaf+asoiaf', limit = 200, verbosity = 0)
             commentCount = 0
 
             for comment in comments:
@@ -418,22 +546,19 @@ def main():
                     # with Spoilers All as it's 0
                     if allBooks.title != None:
                         allBooks.which_book()
-                        # Don't respond to the comment a second time 
+                        # Don't respond to the comment a second time
                         if allBooks.comment.id not in allBooks.commented:
                             # skips when SearchCOMMAND! is higher than (Spoiler Tag)
                             if (allBooks.bookCommand.value <= allBooks.title.value or
                                 allBooks.title.value == 0):
-                                allBooks.parse_comment()
-                                allBooks.from_database_to_dict()
-                                allBooks.find_the_search_term()
-                                allBooks.build_message()
-                                allBooks.reply()
+                                t = Thread(target=allBooks.run())
+                                t.start()
                             elif allBooks.comment.id not in allBooks.commented:
                                 allBooks.reply(spoiler=True)
                     elif allBooks.comment.id not in allBooks.commented:
                         # Sends apporiate message if it's a spoiler
                         allBooks.reply(spoiler=True)
-                if commentCount == 100:
+                if commentCount == 200:
                     break
 
             print "sleeping"
@@ -446,3 +571,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
