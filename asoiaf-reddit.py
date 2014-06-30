@@ -272,7 +272,50 @@ class Books(object):
         """
         if self._chapterPov == "[Aeron]":
             self._bookQuery += 'WHERE chapterpov = "Aeron Greyjoy" '
-
+        if self._chapterPov == "[Areo]":
+            self._bookQuery += 'WHERE chapterpov = "Areo Hotah" '
+        if self._chapterPov == "[Arianne]":
+            self._bookQuery += 'WHERE chapterpov = "Arianne Martell" '
+        if self._chapterPov == "[Arya]":
+            self._bookQuery += 'WHERE chapterpov = "Arya Stark" '
+        if self._chapterPov == "[Asha]":
+            self._bookQuery += 'WHERE chapterpov = "Asha Greyjoy" '
+        if self._chapterPov == "[Barristan]":
+            self._bookQuery += 'WHERE chapterpov = "Barristan Selmy" '
+        if self._chapterPov == "[Bran]":
+            self._bookQuery += 'WHERE chapterpov = "Bran Stark" '
+        if self._chapterPov == "[Brienne]":
+            self._bookQuery += 'WHERE chapterpov = "Brienne of Tarth" '
+        if self._chapterPov == "[Cat]":
+            self._bookQuery += 'WHERE chapterpov = "Catelyn Tully" '
+        if self._chapterPov == "[Cersei]":
+            self._bookQuery += 'WHERE chapterpov = "Cersei Lannister" '
+        if self._chapterPov == "[Dany]":
+            self._bookQuery += 'WHERE chapterpov = "Daenerys Targaryen" '
+        if self._chapterPov == "[Davos]":
+            self._bookQuery += 'WHERE chapterpov = "Davos Seaworth" '
+        if self._chapterPov == "[Ned]":
+            self._bookQuery += 'WHERE chapterpov = "Eddard Stark" '
+        if self._chapterPov == "[Jaime]":
+            self._bookQuery += 'WHERE chapterpov = "Jaime Lannister" '
+        if self._chapterPov == "[JonCon]":
+            self._bookQuery += 'WHERE chapterpov = "Jon Connington" '
+        if self._chapterPov == "[Jon]":
+            self._bookQuery += 'WHERE chapterpov = "Jon Snow" '
+        if self._chapterPov == "[Melisandre]":
+            self._bookQuery += 'WHERE chapterpov = "Melisandre " '
+        if self._chapterPov == "[Quentyn]":
+            self._bookQuery += 'WHERE chapterpov = "Quentyn Martell" '
+        if self._chapterPov == "[Samwell]":
+            self._bookQuery += 'WHERE chapterpov = "Samwell Tarly" '
+        if self._chapterPov == "[Sansa]":
+            self._bookQuery += 'WHERE chapterpov = "Sansa Stark" '
+        if self._chapterPov == "[Theon]":
+            self._bookQuery += 'WHERE chapterpov = "Theon Greyjoy" '
+        if self._chapterPov == "[Tyrion]":
+            self._bookQuery += 'WHERE chapterpov = "Tyrion Lannister" '
+        if self._chapterPov == "[Victarion]":
+            self._bookQuery += 'WHERE chapterpov = "Victarion Greyjoy" '
 
     def build_message(self):
         """
