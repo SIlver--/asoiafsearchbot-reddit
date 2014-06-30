@@ -98,6 +98,7 @@ class Books(object):
         self.comment = comment
         self.bookCommand = None
         self.title = None
+        self._chapterPov = None
         self._bookContainer = None
         self._searchTerm = ""
         self._bookQuery = ""
@@ -125,16 +126,23 @@ class Books(object):
                                 self.comment.body)[2:]
                             )
 
+        # checks to see if user wants a character chapter only
+        searchSqrBrackets = re.search('\[(.*?)\]', self._searchTerm)
+        if searchSqrBrackets:
+            self._chapterPov = searchSqrBrackets.group(0)
+            self.which_pov()
+
         # Kept for legacy reasons
-        search_brackets = re.search('"(.*?)"', self._searchTerm)
-        if search_brackets:
-            self._searchTerm = search_brackets.group(0)
-        search_tri = re.search('\((.*?)\)', self._searchTerm)
-        if search_tri:
-            self._searchTerm = search_tri.group(0)
-        
+        searchBrackets = re.search('"(.*?)"', self._searchTerm)
+        if searchBrackets:
+            self._searchTerm = searchBrackets.group(0)
+
+        searchTri = re.search('\((.*?)\)', self._searchTerm)
+        if searchTri:
+            self._searchTerm = searchTri.group(0)
+
         # quotations at start and end
-        if search_brackets or search_tri:
+        if searchBrackets or searchTri:
             self._searchTerm = self._searchTerm[1:-1]
 
         # legacy: as the user doesn't need to do "" or ()
@@ -262,7 +270,9 @@ class Books(object):
         """
         Allows the user to search specific character chapters only
         """
-        self._bookQuery += 'WHERE chapterpov = "Sansa Stark" '
+        if self._chapterPov == "[Aeron]":
+            self._bookQuery += 'WHERE chapterpov = "Aeron Greyjoy" '
+
 
     def build_message(self):
         """
@@ -398,7 +408,6 @@ class Books(object):
 
     def run(self):
         self.parse_comment()
-        self.which_pov()
         self.from_database_to_dict()
         self.find_the_search_term()
         self.build_message()
@@ -415,7 +424,7 @@ def main():
         print "start"
         try:
             comments = praw.helpers.comment_stream(
-                reddit, 'pureasoiaf+asoiaf', limit = 200, verbosity = 0)
+                reddit, 'pureasoiaf+asoiaf', limit = 50, verbosity = 0)
             commentCount = 0
 
             for comment in comments:
