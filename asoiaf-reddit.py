@@ -99,9 +99,11 @@ class Books(object):
         self.bookCommand = None
         self.title = None
         self._chapterPov = None
+        self._chapterPovName = None
+        self._chapterPovMessage = None
         self._bookContainer = None
         self._searchTerm = ""
-        self._bookQuery = ""
+        self._bookQuery = None
         self._sensitive = None
         self._listOccurrence = []
         self._rowOccurrence = 0
@@ -109,6 +111,23 @@ class Books(object):
         self._rowCount = 0
         self._commentUser = ""
         self._message = ""
+        self._links = ( 
+                    "\n\n**Try the practice thread to reduce spam and keep the current thread on topic.**\n\n"
+                    "\n_____\n"
+                    "[^([More Info Here])]"
+                    "(http://www.reddit.com/r/asoiaf/comments/25amke/"
+                    "spoilers_all_introducing_asoiafsearchbot_command/) ^| "
+                    "[^([Practice Thread])]"
+                    "(http://www.reddit.com/r/asoiaf/comments/26ez9u/"
+                    "spoilers_all_asoiafsearchbot_practice_thread/) ^| "
+                    "[^([Character Specific Commands])]"
+                    "(http://www.reddit.com/r/asoiaf/comments/26ez9u/"
+                    "spoilers_all_asoiafsearchbot_practice_thread/) ^| "
+                    "[^([Suggestions])]"
+                    "(http://www.reddit.com/message/compose/?to=RemindMeBotWrangler&subject=Suggestion) ^| "
+                    "[^([Code])]"
+                    "(https://github.com/SIlver--/asoiafsearchbot-reddit)"
+                    )
 
     def parse_comment(self):
         """
@@ -164,7 +183,6 @@ class Books(object):
                 col1 = "story",
                 col2 = "book")
         grabDB.execute(query)
-
         # Each row counts as a chapter
         self._bookContainer = grabDB.fetchall()
         grabDB.close()
@@ -241,17 +259,23 @@ class Books(object):
         SQL statement should go. So if the title is ASOS it will only
         do every occurence up to ASOS ONLY for SearchAll!
         """
+        # If the user didn't include a characterPOV, add the WHERE
+        # If they do(It's not a NONE), add AND
+        if self._bookQuery == None:
+            self._bookQuery = "WHERE "
+        else:
+            self._bookQuery += "AND "
         # When command is SearchAll! the specific searches
         # will instead be used. example SearchASOS!
         if self.bookCommand.name != 'All':
-            self._bookQuery = ('AND {col2} = "{book}" '
+            self._bookQuery += ('{col2} = "{book}" '
                 ).format(col2 = "book",
                         book = self.bookCommand.name)
         # Starts from AGOT ends at what self.title is
         # Not needed for All(0) because the SQL does it by default
         elif self.title.value != 0:
-            # First time requires WHERE, next are ORs
-            self._bookQuery += ('AND ({col2} = "{book}" '
+            # First time requires AND from earlier, next are ORs
+            self._bookQuery += ('({col2} = "{book}" '
                 ).format(col2 = "book",
                         book = 'AGOT')
             # start the loop after AGOT
@@ -270,53 +294,68 @@ class Books(object):
         """
         Allows the user to search specific character chapters only
         """
-        if self._chapterPov == "[Aeron]":
-            self._bookQuery += 'WHERE chapterpov = "Aeron Greyjoy" '
-        if self._chapterPov == "[Areo]":
-            self._bookQuery += 'WHERE chapterpov = "Areo Hotah" '
-        if self._chapterPov == "[Arianne]":
-            self._bookQuery += 'WHERE chapterpov = "Arianne Martell" '
-        if self._chapterPov == "[Arya]":
-            self._bookQuery += 'WHERE chapterpov = "Arya Stark" '
-        if self._chapterPov == "[Asha]":
-            self._bookQuery += 'WHERE chapterpov = "Asha Greyjoy" '
-        if self._chapterPov == "[Barristan]":
-            self._bookQuery += 'WHERE chapterpov = "Barristan Selmy" '
-        if self._chapterPov == "[Bran]":
-            self._bookQuery += 'WHERE chapterpov = "Bran Stark" '
-        if self._chapterPov == "[Brienne]":
-            self._bookQuery += 'WHERE chapterpov = "Brienne of Tarth" '
-        if self._chapterPov == "[Cat]":
-            self._bookQuery += 'WHERE chapterpov = "Catelyn Tully" '
-        if self._chapterPov == "[Cersei]":
-            self._bookQuery += 'WHERE chapterpov = "Cersei Lannister" '
-        if self._chapterPov == "[Dany]":
-            self._bookQuery += 'WHERE chapterpov = "Daenerys Targaryen" '
-        if self._chapterPov == "[Davos]":
-            self._bookQuery += 'WHERE chapterpov = "Davos Seaworth" '
-        if self._chapterPov == "[Ned]":
-            self._bookQuery += 'WHERE chapterpov = "Eddard Stark" '
-        if self._chapterPov == "[Jaime]":
-            self._bookQuery += 'WHERE chapterpov = "Jaime Lannister" '
-        if self._chapterPov == "[JonCon]":
-            self._bookQuery += 'WHERE chapterpov = "Jon Connington" '
-        if self._chapterPov == "[Jon]":
-            self._bookQuery += 'WHERE chapterpov = "Jon Snow" '
-        if self._chapterPov == "[Melisandre]":
-            self._bookQuery += 'WHERE chapterpov = "Melisandre " '
-        if self._chapterPov == "[Quentyn]":
-            self._bookQuery += 'WHERE chapterpov = "Quentyn Martell" '
-        if self._chapterPov == "[Samwell]":
-            self._bookQuery += 'WHERE chapterpov = "Samwell Tarly" '
-        if self._chapterPov == "[Sansa]":
-            self._bookQuery += 'WHERE chapterpov = "Sansa Stark" '
-        if self._chapterPov == "[Theon]":
-            self._bookQuery += 'WHERE chapterpov = "Theon Greyjoy" '
-        if self._chapterPov == "[Tyrion]":
-            self._bookQuery += 'WHERE chapterpov = "Tyrion Lannister" '
-        if self._chapterPov == "[Victarion]":
-            self._bookQuery += 'WHERE chapterpov = "Victarion Greyjoy" '
 
+        if self._chapterPov == "[Aeron]":
+            self._chapterPovName = "Aeron Greyjoy"
+        if self._chapterPov == "[Areo]":
+            self._chapterPovName = "Areo Hotah"
+        if self._chapterPov == "[Arianne]":
+            self._chapterPovName = "Arianne Martell"
+        if self._chapterPov == "[Arya]":
+            self._chapterPovName = "Arya Stark"
+        if self._chapterPov == "[Asha]":
+            self._chapterPovName = "Asha Greyjoy"
+        if self._chapterPov == "[Barristan]":
+            self._chapterPovName = "Barristan Selmy"
+        if self._chapterPov == "[Bran]":
+            self._chapterPovName = "Bran Stark"
+        if self._chapterPov == "[Brienne]":
+            self._chapterPovName = "Brienne of Tarth"
+        if self._chapterPov == "[Cat]":
+            self._chapterPovName = "Catelyn Tully"
+        if self._chapterPov == "[Cersei]":
+            self._chapterPovName = "Cersei Lannister"
+        if self._chapterPov == "[Dany]":
+            self._chapterPovName = "Daenerys Targaryen"
+        if self._chapterPov == "[Davos]":
+            self._chapterPovName = "Davos Seaworth"
+        if self._chapterPov == "[Ned]":
+            self._chapterPovName = "Eddard Stark"
+        if self._chapterPov == "[Jaime]":
+            self._chapterPovName = "Jaime Lannister"
+        if self._chapterPov == "[JonCon]":
+            self._chapterPovName = "Jon Connington"
+        if self._chapterPov == "[Jon]":
+            self._chapterPovName = "Jon Snow"
+        if self._chapterPov == "[Melisandre]":
+            self._chapterPovName = "Melisandre"
+        if self._chapterPov == "[Quentyn]":
+            self._chapterPovName = "Quentyn Martell"
+        if self._chapterPov == "[Samwell]":
+            self._chapterPovName = "Samwell Tarly" 
+        if self._chapterPov == "[Sansa]":
+            self._chapterPovName = "Sansa Stark"
+        if self._chapterPov == "[Theon]":
+            self._chapterPovName = "Theon Greyjoy"
+        if self._chapterPov == "[Tyrion]":
+            self._chapterPovName = "Tyrion Lannister"
+        if self._chapterPov == "[Victarion]":
+            self._chapterPovName = "Victarion Greyjoy"
+
+        # if no command is found, user entered in an incorrect command
+        if self._chapterPovName != None:
+            self._bookQuery = ('WHERE chapterpov = "{charactername}" ').format(
+                            charactername = self._chapterPovName,
+                )
+            self._chapterPovMessage = ("**ONLY** for **{character}** chapters.\n\n").format(
+                            character = self._chapterPovName,
+            )
+        else:
+            self._chapterPovMessage = ("Note: Looks like you didn't enter in a correct character name. "
+                                    "Searching all characters instead. "
+                                    "Refer to this {thread} for correct command usage.\n\n").format(
+                            thread = "[Thread](Linkhere.com)"
+            )
     def build_message(self):
         """
         Build message that will be sent to the reddit user
@@ -326,22 +365,11 @@ class Books(object):
                 "Total Occurrence: {totalOccur} \n\n"
                 "Total Chapters: {totalChapter} \n\n"
                 "{warning}"
+                "{chapterpov}"
                 "######&#009;\n\n####&#009;\n\n#####&#009;\n\n"
                 "&#009;\n\n&#009;\n\n"
                 ">{message}"
-                "\n_____\n"
-                "**Try the practice thread to reduce spam and keep the current thread on topic.**\n\n"
-                "[^([More Info Here])]"
-                "(http://www.reddit.com/r/asoiaf/comments/25amke/"
-                "spoilers_all_introducing_asoiafsearchbot_command/) | "
-                "[^([Practice Thread])]"
-                "(http://www.reddit.com/r/asoiaf/comments/26ez9u/"
-                "spoilers_all_asoiafsearchbot_practice_thread/) | "
-                "[^([Suggestions])]"
-                "(http://www.reddit.com/message/compose/?to=RemindMeBotWrangler&subject=Suggestion) | "
-                "[^([Code])]"
-                "(https://github.com/SIlver--/asoiafsearchbot-reddit)"
-
+                "{link}"
             )
         warning = ""
         if self.title.name != 'All' and self.title.name != 'PQ' and self.title.name != 'DE':
@@ -364,9 +392,11 @@ class Books(object):
                 
         self._commentUser = commentUser.format(
             warning = warning,
+            chapterpov = self._chapterPovMessage,
             term = self._searchTerm,
             totalOccur = self._total,
             message = self._message,
+            link = self._links,
             totalChapter = self._rowCount
         )
         
@@ -380,20 +410,8 @@ class Books(object):
                 self._commentUser = (
                     ">**Sorry, fulfilling this request would be a spoiler due to the spoiler tag in this thread. "
                     "Mayhaps try the request in another thread, heh.**\n\n"
-                    "**Try the practice thread to reduce spam and keep the current thread on topic.**\n\n"
-                    "\n_____\n"
-                    "[^([More Info Here])]"
-                    "(http://www.reddit.com/r/asoiaf/comments/25amke/"
-                    "spoilers_all_introducing_asoiafsearchbot_command/) | "
-                    "[^([Practice Thread])]"
-                    "(http://www.reddit.com/r/asoiaf/comments/26ez9u/"
-                    "spoilers_all_asoiafsearchbot_practice_thread/) | "
-                    "[^([Suggestions])]"
-                    "(http://www.reddit.com/message/compose/?to=RemindMeBotWrangler&subject=Suggestion) | "
-                    "[^([Code])]"
-                    "(https://github.com/SIlver--/asoiafsearchbot-reddit)"
-
-                )
+                    "{link}"
+                ).format(link = self._links)
             
             print self._commentUser
             #self.comment.reply(self._commentUser)
