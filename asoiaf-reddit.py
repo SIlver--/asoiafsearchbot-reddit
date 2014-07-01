@@ -98,12 +98,10 @@ class Books(object):
         self.comment = comment
         self.bookCommand = None
         self.title = None
-        self._chapterPov = None
-        self._chapterPovName = None
         self._chapterPovMessage = None
         self._bookContainer = None
         self._searchTerm = ""
-        self._bookQuery = None
+        self._bookQuery = ""
         self._sensitive = None
         self._listOccurrence = []
         self._rowOccurrence = 0
@@ -148,8 +146,8 @@ class Books(object):
         # checks to see if user wants a character chapter only
         searchSqrBrackets = re.search('\[(.*?)\]', self._searchTerm)
         if searchSqrBrackets:
-            self._chapterPov = searchSqrBrackets.group(0)
-            self.which_pov()
+            chapterPov = searchSqrBrackets.group(0)
+            self.which_pov(chapterPov)
 
         # Kept for legacy reasons
         searchBrackets = re.search('"(.*?)"', self._searchTerm)
@@ -182,6 +180,7 @@ class Books(object):
                 bookQuery = self._bookQuery,
                 col1 = "story",
                 col2 = "book")
+        print "----", query
         grabDB.execute(query)
         # Each row counts as a chapter
         self._bookContainer = grabDB.fetchall()
@@ -259,23 +258,25 @@ class Books(object):
         SQL statement should go. So if the title is ASOS it will only
         do every occurence up to ASOS ONLY for SearchAll!
         """
+        """
         # If the user didn't include a characterPOV, add the WHERE
         # If they do(It's not a NONE), add AND
-        if self._bookQuery == None:
-            self._bookQuery = "WHERE "
-        else:
+        if self._bookQuery == "":
+            #self._bookQuery = "WHERE "
+        #else:
             self._bookQuery += "AND "
+        """
         # When command is SearchAll! the specific searches
         # will instead be used. example SearchASOS!
         if self.bookCommand.name != 'All':
-            self._bookQuery += ('{col2} = "{book}" '
+            self._bookQuery += ('WHERE {col2} = "{book}" '
                 ).format(col2 = "book",
                         book = self.bookCommand.name)
         # Starts from AGOT ends at what self.title is
         # Not needed for All(0) because the SQL does it by default
         elif self.title.value != 0:
             # First time requires AND from earlier, next are ORs
-            self._bookQuery += ('({col2} = "{book}" '
+            self._bookQuery += ('WHERE ({col2} = "{book}" '
                 ).format(col2 = "book",
                         book = 'AGOT')
             # start the loop after AGOT
@@ -290,65 +291,72 @@ class Books(object):
                                 book = curBook)
             self._bookQuery += ")" # close the WHERE in the MSQL
 
-    def which_pov(self):
+    def which_pov(self,chapterPov):
         """
         Allows the user to search specific character chapters only
         """
-
-        if self._chapterPov == "[Aeron]":
-            self._chapterPovName = "Aeron Greyjoy"
-        if self._chapterPov == "[Areo]":
-            self._chapterPovName = "Areo Hotah"
-        if self._chapterPov == "[Arianne]":
-            self._chapterPovName = "Arianne Martell"
-        if self._chapterPov == "[Arya]":
-            self._chapterPovName = "Arya Stark"
-        if self._chapterPov == "[Asha]":
-            self._chapterPovName = "Asha Greyjoy"
-        if self._chapterPov == "[Barristan]":
-            self._chapterPovName = "Barristan Selmy"
-        if self._chapterPov == "[Bran]":
-            self._chapterPovName = "Bran Stark"
-        if self._chapterPov == "[Brienne]":
-            self._chapterPovName = "Brienne of Tarth"
-        if self._chapterPov == "[Cat]":
-            self._chapterPovName = "Catelyn Tully"
-        if self._chapterPov == "[Cersei]":
-            self._chapterPovName = "Cersei Lannister"
-        if self._chapterPov == "[Dany]":
-            self._chapterPovName = "Daenerys Targaryen"
-        if self._chapterPov == "[Davos]":
-            self._chapterPovName = "Davos Seaworth"
-        if self._chapterPov == "[Ned]":
-            self._chapterPovName = "Eddard Stark"
-        if self._chapterPov == "[Jaime]":
-            self._chapterPovName = "Jaime Lannister"
-        if self._chapterPov == "[JonCon]":
-            self._chapterPovName = "Jon Connington"
-        if self._chapterPov == "[Jon]":
-            self._chapterPovName = "Jon Snow"
-        if self._chapterPov == "[Melisandre]":
-            self._chapterPovName = "Melisandre"
-        if self._chapterPov == "[Quentyn]":
-            self._chapterPovName = "Quentyn Martell"
-        if self._chapterPov == "[Samwell]":
-            self._chapterPovName = "Samwell Tarly" 
-        if self._chapterPov == "[Sansa]":
-            self._chapterPovName = "Sansa Stark"
-        if self._chapterPov == "[Theon]":
-            self._chapterPovName = "Theon Greyjoy"
-        if self._chapterPov == "[Tyrion]":
-            self._chapterPovName = "Tyrion Lannister"
-        if self._chapterPov == "[Victarion]":
-            self._chapterPovName = "Victarion Greyjoy"
-
+        chapterPovName = None
+        if chapterPov == "[Aeron]":
+            hapterPovName = "Aeron Greyjoy"
+        if chapterPov == "[Areo]":
+            chapterPovName = "Areo Hotah"
+        if chapterPov == "[Arianne]":
+            chapterPovName = "Arianne Martell"
+        if chapterPov == "[Arya]":
+            chapterPovName = "Arya Stark"
+        if chapterPov == "[Asha]":
+            chapterPovName = "Asha Greyjoy"
+        if chapterPov == "[Barristan]":
+            chapterPovName = "Barristan Selmy"
+        if chapterPov == "[Bran]":
+            chapterPovName = "Bran Stark"
+        if chapterPov == "[Brienne]":
+            chapterPovName = "Brienne of Tarth"
+        if chapterPov == "[Cat]":
+            chapterPovName = "Catelyn Tully"
+        if chapterPov == "[Cersei]":
+            chapterPovName = "Cersei Lannister"
+        if chapterPov == "[Dany]":
+            chapterPovName = "Daenerys Targaryen"
+        if chapterPov == "[Davos]":
+            chapterPovName = "Davos Seaworth"
+        if chapterPov == "[Ned]":
+            chapterPovName = "Eddard Stark"
+        if chapterPov == "[Jaime]":
+            chapterPovName = "Jaime Lannister"
+        if chapterPov == "[JonCon]":
+            chapterPovName = "Jon Connington"
+        if chapterPov == "[Jon]":
+            chapterPovName = "Jon Snow"
+        if chapterPov == "[Melisandre]":
+            chapterPovName = "Melisandre"
+        if chapterPov == "[Quentyn]":
+            chapterPovName = "Quentyn Martell"
+        if chapterPov == "[Samwell]":
+            chapterPovName = "Samwell Tarly" 
+        if chapterPov == "[Sansa]":
+            chapterPovName = "Sansa Stark"
+        if chapterPov == "[Theon]":
+            chapterPovName = "Theon Greyjoy"
+        if chapterPov == "[Tyrion]":
+            chapterPovName = "Tyrion Lannister"
+        if chapterPov == "[Victarion]":
+            chapterPovName = "Victarion Greyjoy"
+       
         # if no command is found, user entered in an incorrect command
-        if self._chapterPovName != None:
-            self._bookQuery = ('WHERE chapterpov = "{charactername}" ').format(
-                            charactername = self._chapterPovName,
+        if chapterPovName != None:
+            # If the user didn't include a book, add the WHERE
+            # If they do add AND
+            if self._bookQuery == "":
+                self._bookQuery = "WHERE "
+            else:
+                self._bookQuery += "AND "
+
+            self._bookQuery += ('chapterpov = "{charactername}" ').format(
+                            charactername = chapterPovName,
                 )
             self._chapterPovMessage = ("**ONLY** for **{character}** chapters.\n\n").format(
-                            character = self._chapterPovName,
+                            character = chapterPovName,
             )
         else:
             self._chapterPovMessage = ("Note: Looks like you didn't enter in a correct character name. "
