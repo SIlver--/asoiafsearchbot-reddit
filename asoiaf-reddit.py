@@ -29,8 +29,6 @@ user = config.get("SQL", "user")
 passwd = config.get("SQL", "passwd")
 db = config.get("SQL", "db")
 table = config.get("SQL", "table")
-column1 = config.get("SQL", "column1")
-column2 = config.get("SQL", "column2")
 
 MAX_ROWS = 30
 BOOK_CONTAINER = []
@@ -100,6 +98,7 @@ class Books(object):
         self.comment = comment
         self.bookCommand = None
         self.title = None
+        self._chapterPovMessage = None
         self._bookContainer = None
         self._searchTerm = ""
         self._bookQuery = ""
@@ -110,6 +109,23 @@ class Books(object):
         self._rowCount = 0
         self._commentUser = ""
         self._message = ""
+        self._links = ( 
+                    "\n\n**Try the practice thread to reduce spam and keep the current thread on topic.**\n\n"
+                    "\n_____\n"
+                    "[^([More Info Here])]"
+                    "(http://www.reddit.com/r/asoiaf/comments/25amke/"
+                    "spoilers_all_introducing_asoiafsearchbot_command/) ^| "
+                    "[^([Practice Thread])]"
+                    "(http://www.reddit.com/r/asoiaf/comments/26ez9u/"
+                    "spoilers_all_asoiafsearchbot_practice_thread/) ^| "
+                    "[^([Character Specific Commands])]"
+                    "(http://www.reddit.com/r/asoiaf/comments/26ez9u/"
+                    "spoilers_all_asoiafsearchbot_practice_thread/) ^| "
+                    "[^([Suggestions])]"
+                    "(http://www.reddit.com/message/compose/?to=RemindMeBotWrangler&subject=Suggestion) ^| "
+                    "[^([Code])]"
+                    "(https://github.com/SIlver--/asoiafsearchbot-reddit)"
+                    )
 
     def parse_comment(self):
         """
@@ -127,22 +143,28 @@ class Books(object):
                                 self.comment.body)[2:]
                             )
 
+        # checks to see if user wants a character chapter only
+        searchSqrBrackets = re.search('\[(.*?)\]', self._searchTerm)
+        if searchSqrBrackets:
+            chapterPov = searchSqrBrackets.group(0)
+            self.which_pov(chapterPov)
+
         # Kept for legacy reasons
-        search_brackets = re.search('"(.*?)"', self._searchTerm)
-        if search_brackets:
-            self._searchTerm = search_brackets.group(0)
-        search_tri = re.search('\((.*?)\)', self._searchTerm)
-        if search_tri:
-            self._searchTerm = search_tri.group(0)
-        
+        searchBrackets = re.search('"(.*?)"', self._searchTerm)
+        if searchBrackets:
+            self._searchTerm = searchBrackets.group(0)
+
+        searchTri = re.search('\((.*?)\)', self._searchTerm)
+        if searchTri:
+            self._searchTerm = searchTri.group(0)
+
         # quotations at start and end
-        if search_brackets or search_tri:
+        if searchBrackets or searchTri:
             self._searchTerm = self._searchTerm[1:-1]
 
         # legacy: as the user doesn't need to do "" or ()
         self._searchTerm = self._searchTerm.strip()
         
-
     def from_database_to_dict(self):
         """
         Transfers everything from the database to a tuple type
@@ -156,10 +178,10 @@ class Books(object):
             ).format(
                 table = table,
                 bookQuery = self._bookQuery,
-                col1 = column1,
-                col2 = column2)
+                col1 = "story",
+                col2 = "book")
+        print "----", query
         grabDB.execute(query)
-
         # Each row counts as a chapter
         self._bookContainer = grabDB.fetchall()
         grabDB.close()
@@ -236,18 +258,26 @@ class Books(object):
         SQL statement should go. So if the title is ASOS it will only
         do every occurence up to ASOS ONLY for SearchAll!
         """
+        """
+        # If the user didn't include a characterPOV, add the WHERE
+        # If they do(It's not a NONE), add AND
+        if self._bookQuery == "":
+            #self._bookQuery = "WHERE "
+        #else:
+            self._bookQuery += "AND "
+        """
         # When command is SearchAll! the specific searches
         # will instead be used. example SearchASOS!
         if self.bookCommand.name != 'All':
-            self._bookQuery = ('WHERE {col2} = "{book}" '
-                ).format(col2 = column2,
+            self._bookQuery += ('WHERE {col2} = "{book}" '
+                ).format(col2 = "book",
                         book = self.bookCommand.name)
         # Starts from AGOT ends at what self.title is
         # Not needed for All(0) because the SQL does it by default
         elif self.title.value != 0:
-            # First time requires WHERE, next are ORs
+            # First time requires AND from earlier, next are ORs
             self._bookQuery += ('WHERE ({col2} = "{book}" '
-                ).format(col2 = column2,
+                ).format(col2 = "book",
                         book = 'AGOT')
             # start the loop after AGOT
             for x in range(2, self.title.value+1):
@@ -257,10 +287,83 @@ class Books(object):
                 # and shouldn't add D&E and P&Q
                 if Title(x) != 1:
                     self._bookQuery += ('OR {col2} = "{book}" '
-                        ).format(col2 = column2,
+                        ).format(col2 = "book",
                                 book = curBook)
             self._bookQuery += ")" # close the WHERE in the MSQL
 
+    def which_pov(self,chapterPov):
+        """
+        Allows the user to search specific character chapters only
+        """
+        chapterPovName = None
+        if chapterPov == "[Aeron]":
+            hapterPovName = "Aeron Greyjoy"
+        if chapterPov == "[Areo]":
+            chapterPovName = "Areo Hotah"
+        if chapterPov == "[Arianne]":
+            chapterPovName = "Arianne Martell"
+        if chapterPov == "[Arya]":
+            chapterPovName = "Arya Stark"
+        if chapterPov == "[Asha]":
+            chapterPovName = "Asha Greyjoy"
+        if chapterPov == "[Barristan]":
+            chapterPovName = "Barristan Selmy"
+        if chapterPov == "[Bran]":
+            chapterPovName = "Bran Stark"
+        if chapterPov == "[Brienne]":
+            chapterPovName = "Brienne of Tarth"
+        if chapterPov == "[Cat]":
+            chapterPovName = "Catelyn Tully"
+        if chapterPov == "[Cersei]":
+            chapterPovName = "Cersei Lannister"
+        if chapterPov == "[Dany]":
+            chapterPovName = "Daenerys Targaryen"
+        if chapterPov == "[Davos]":
+            chapterPovName = "Davos Seaworth"
+        if chapterPov == "[Ned]":
+            chapterPovName = "Eddard Stark"
+        if chapterPov == "[Jaime]":
+            chapterPovName = "Jaime Lannister"
+        if chapterPov == "[JonCon]":
+            chapterPovName = "Jon Connington"
+        if chapterPov == "[Jon]":
+            chapterPovName = "Jon Snow"
+        if chapterPov == "[Melisandre]":
+            chapterPovName = "Melisandre"
+        if chapterPov == "[Quentyn]":
+            chapterPovName = "Quentyn Martell"
+        if chapterPov == "[Samwell]":
+            chapterPovName = "Samwell Tarly" 
+        if chapterPov == "[Sansa]":
+            chapterPovName = "Sansa Stark"
+        if chapterPov == "[Theon]":
+            chapterPovName = "Theon Greyjoy"
+        if chapterPov == "[Tyrion]":
+            chapterPovName = "Tyrion Lannister"
+        if chapterPov == "[Victarion]":
+            chapterPovName = "Victarion Greyjoy"
+       
+        # if no command is found, user entered in an incorrect command
+        if chapterPovName != None:
+            # If the user didn't include a book, add the WHERE
+            # If they do add AND
+            if self._bookQuery == "":
+                self._bookQuery = "WHERE "
+            else:
+                self._bookQuery += "AND "
+
+            self._bookQuery += ('chapterpov = "{charactername}" ').format(
+                            charactername = chapterPovName,
+                )
+            self._chapterPovMessage = ("**ONLY** for **{character}** chapters.\n\n").format(
+                            character = chapterPovName,
+            )
+        else:
+            self._chapterPovMessage = ("Note: Looks like you didn't enter in a correct character name. "
+                                    "Searching all characters instead. "
+                                    "Refer to this {thread} for correct command usage.\n\n").format(
+                            thread = "[Thread](Linkhere.com)"
+            )
     def build_message(self):
         """
         Build message that will be sent to the reddit user
@@ -270,22 +373,11 @@ class Books(object):
                 "Total Occurrence: {totalOccur} \n\n"
                 "Total Chapters: {totalChapter} \n\n"
                 "{warning}"
+                "{chapterpov}"
                 "######&#009;\n\n####&#009;\n\n#####&#009;\n\n"
                 "&#009;\n\n&#009;\n\n"
                 ">{message}"
-                "\n_____\n"
-                "**Try the practice thread to reduce spam and keep the current thread on topic.**\n\n"
-                "[^([More Info Here])]"
-                "(http://www.reddit.com/r/asoiaf/comments/25amke/"
-                "spoilers_all_introducing_asoiafsearchbot_command/) | "
-                "[^([Practice Thread])]"
-                "(http://www.reddit.com/r/asoiaf/comments/26ez9u/"
-                "spoilers_all_asoiafsearchbot_practice_thread/) | "
-                "[^([Suggestions])]"
-                "(http://www.reddit.com/message/compose/?to=RemindMeBotWrangler&subject=Suggestion) | "
-                "[^([Code])]"
-                "(https://github.com/SIlver--/asoiafsearchbot-reddit)"
-
+                "{link}"
             )
         warning = ""
         if self.title.name != 'All' and self.title.name != 'PQ' and self.title.name != 'DE':
@@ -308,9 +400,11 @@ class Books(object):
                 
         self._commentUser = commentUser.format(
             warning = warning,
+            chapterpov = self._chapterPovMessage,
             term = self._searchTerm,
             totalOccur = self._total,
             message = self._message,
+            link = self._links,
             totalChapter = self._rowCount
         )
         
@@ -324,145 +418,11 @@ class Books(object):
                 self._commentUser = (
                     ">**Sorry, fulfilling this request would be a spoiler due to the spoiler tag in this thread. "
                     "Mayhaps try the request in another thread, heh.**\n\n"
-                    "**Try the practice thread to reduce spam and keep the current thread on topic.**\n\n"
-                    "\n_____\n"
-                    "[^([More Info Here])]"
-                    "(http://www.reddit.com/r/asoiaf/comments/25amke/"
-                    "spoilers_all_introducing_asoiafsearchbot_command/) | "
-                    "[^([Practice Thread])]"
-                    "(http://www.reddit.com/r/asoiaf/comments/26ez9u/"
-                    "spoilers_all_asoiafsearchbot_practice_thread/) | "
-                    "[^([Suggestions])]"
-                    "(http://www.reddit.com/message/compose/?to=RemindMeBotWrangler&subject=Suggestion) | "
-                    "[^([Code])]"
-                    "(https://github.com/SIlver--/asoiafsearchbot-reddit)"
-
-                )
+                    "{link}"
+                ).format(link = self._links)
             
             print self._commentUser
             #self.comment.reply(self._commentUser)
-
-        except (HTTPError, ConnectionError, Timeout, timeout) as err:
-            print err
-        except RateLimitExceeded as err:
-            print err
-            time.sleep(10)
-        except APIException as err: # Catch any less specific API errors
-            print err
-        else:
-            self.commented.append(self.comment.id)
-        
-    def which_book(self):
-        """
-        self.title holds the farthest book in the series the
-        SQL statement should go. So if the title is ASOS it will only
-        do every occurence up to ASOS ONLY for SearchAll!
-        """
-        # When command is SearchAll! the specific searches 
-        # will instead be used. example SearchASOS!
-        if self.bookCommand.name != 'All':
-            self._bookQuery = ('WHERE {col2} = "{book}" '
-                ).format(col2 = column2,
-                        book = self.bookCommand.name)
-        # Starts from AGOT ends at what self.title is
-        # Not needed for All(0) because the SQL does it by default
-        elif self.title.value != 0:
-            # First time requires WHERE, next are ORs
-            self._bookQuery += ('WHERE ({col2} = "{book}" '
-                ).format(col2 = column2,
-                        book = 'AGOT')
-            # start the loop after AGOT
-            for x in range(2, self.title.value+1):
-                # assign current loop the name of the enum's value
-                curBook = Title(x).name 
-                # Shouldn't add ORs if it's AGOT
-                # and shouldn't add D&E and P&Q
-                if Title(x) != 1:
-                    self._bookQuery += ('OR {col2} = "{book}" '
-                        ).format(col2 = column2,
-                                book = curBook)
-            self._bookQuery += ")" # close the WHERE in the MSQL
-
-    def build_message(self):
-        """
-        Build message that will be sent to the reddit user
-        """
-        commentUser = (
-                "**SEARCH TERM: {term}**\n\n"
-                "Total Occurrence: {totalOccur} \n\n"
-                "Total Chapters: {totalChapter} \n\n"
-                "{warning}"
-                "######&#009;\n\n####&#009;\n\n#####&#009;\n\n"
-                "&#009;\n\n&#009;\n\n"
-                ">{message}"
-                "\n_____\n" 
-                "**Try the practice thread to reduce spam and keep the current thread on topic.**\n\n"
-                "[^([More Info Here])]"
-                "(http://www.reddit.com/r/asoiaf/comments/25amke/"
-                "spoilers_all_introducing_asoiafsearchbot_command/) | "
-                "[^([Practice Thread])]"
-                "(http://www.reddit.com/r/asoiaf/comments/26ez9u/"
-                "spoilers_all_asoiafsearchbot_practice_thread/) | "
-                "[^([Suggestions])]"
-                "(http://www.reddit.com/message/compose/?to=RemindMeBotWrangler&subject=Suggestion) | "
-                "[^([Code])]"
-                "(https://github.com/SIlver--/asoiafsearchbot-reddit)"
-
-            )
-        warning = ""
-        if self.title.name != 'All' and self.title.name != 'PQ' and self.title.name != 'DE':
-            warning = ("**ONLY** for **{book}** and under due to the spoiler tag in the title.\n\n").format(
-                            book = self.title.name,
-            )
-        if self._rowCount >= MAX_ROWS:
-            warning += ("Excess number of chapters. Sorted by highest to lowest, top 30 results only.\n\n")
-        # Avoids spam and builds table heading only when condition is met
-        if self._total > 0:
-            self._message += (
-                "| Series| Book| Chapter| Chapter Name| Chapter POV| Occurrence| Quote^(First Occurrence Only)\n"
-            )
-            self._message += "|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|:{dash}|\n".format(dash='-' * 11)
-            # Each element added as a new row with new line
-            for row in self._listOccurrence:
-                self._message += row + "\n"
-        elif self._total == 0:
-                self._message = "**Sorry no results.**\n\n"
-                
-        self._commentUser = commentUser.format(
-            warning = warning,
-            term = self._searchTerm,
-            totalOccur = self._total,
-            message = self._message,
-            totalChapter = self._rowCount
-        )
-        
-    def reply(self, spoiler=False):
-        """
-        Reply to reddit user. If the search would be a spoiler
-        Send different message.
-        """
-        try:
-            if spoiler:
-                self._commentUser = (
-                    ">**Sorry, fulfilling this request would be a spoiler due to the spoiler tag in this thread. "
-                    "Mayhaps try the request in another thread, heh.**\n\n"
-                    "**Try the practice thread to reduce spam and keep the current thread on topic.**\n\n"
-                    "\n_____\n" 
-                    "[^([More Info Here])]"
-                    "(http://www.reddit.com/r/asoiaf/comments/25amke/"
-                    "spoilers_all_introducing_asoiafsearchbot_command/) | "
-                    "[^([Practice Thread])]"
-                    "(http://www.reddit.com/r/asoiaf/comments/26ez9u/"
-                    "spoilers_all_asoiafsearchbot_practice_thread/) | "
-                    "[^([Suggestions])]"
-                    "(http://www.reddit.com/message/compose/?to=RemindMeBotWrangler&subject=Suggestion) | "
-                    "[^([Code])]"
-                    "(https://github.com/SIlver--/asoiafsearchbot-reddit)"
-
-                )
-            
-            print self._commentUser
-            self.comment.reply(self._commentUser)
 
         except (HTTPError, ConnectionError, Timeout, timeout) as err:
             print err
@@ -533,7 +493,7 @@ def main():
         print "start"
         try:
             comments = praw.helpers.comment_stream(
-                reddit, 'pureasoiaf+asoiaf', limit = 200, verbosity = 0)
+                reddit, 'pureasoiaf+asoiaf', limit = 50, verbosity = 0)
             commentCount = 0
 
             for comment in comments:
